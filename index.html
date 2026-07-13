@@ -286,7 +286,12 @@
     </div>
     <div class="card">
       <h2>Diário (livro caixa)</h2>
-      <div class="desc">Ordenado por data, com saldo acumulado a partir do saldo inicial.</div>
+      <div class="desc">Ordenado por data, com saldo acumulado a partir do saldo inicial. Marque as caixinhas pra conciliar ou remover a conciliação de vários lançamentos de uma vez.</div>
+      <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button class="btn small secondary" onclick="conciliarSelecionados(true)">Conciliar selecionados</button>
+        <button class="btn small secondary" onclick="conciliarSelecionados(false)">Excluir conciliação dos selecionados</button>
+        <span class="muted" id="diarioSelecionadosInfo"></span>
+      </div>
       <div class="table-wrap"><table id="tabelaDiario"></table></div>
     </div>
   </section>
@@ -730,6 +735,7 @@ function addDiario(){
 function deleteDiario(id){
   if (!confirm('Excluir este lançamento?')) return;
   state.diario = state.diario.filter(d => d.id !== id);
+  diarioSelecionados.delete(id);
   saveState();
   renderDiario();
 }
@@ -744,6 +750,27 @@ function statusBadge(status){
   const cls = status === 'Pago' ? 'pago' : status === 'Atrasado' ? 'atrasado' : status === 'N/A' ? 'na' : 'pendente';
   return `<span class="badge ${cls}">${status}</span>`;
 }
+let diarioSelecionados = new Set();
+function toggleSelecaoDiario(id, marcado){
+  if (marcado) diarioSelecionados.add(id); else diarioSelecionados.delete(id);
+  atualizarInfoSelecaoDiario();
+}
+function toggleTodosDiario(marcado){
+  diarioOrdenado().forEach(e => { if (marcado) diarioSelecionados.add(e.id); else diarioSelecionados.delete(e.id); });
+  renderDiario();
+}
+function atualizarInfoSelecaoDiario(){
+  const info = document.getElementById('diarioSelecionadosInfo');
+  if (info) info.textContent = diarioSelecionados.size ? diarioSelecionados.size + ' selecionado(s)' : '';
+}
+function conciliarSelecionados(marcarComo){
+  if (!diarioSelecionados.size){ alert('Marque ao menos um lançamento na lista antes.'); return; }
+  let total = 0;
+  state.diario.forEach(e => { if (diarioSelecionados.has(e.id)){ e.conciliado = marcarComo ? 'Sim' : 'Não'; total++; } });
+  saveState();
+  renderDiario();
+  alert((marcarComo ? 'Conciliei ' : 'Removi a conciliação de ') + total + ' lançamento(s).');
+}
 function renderDiario(){
   renderDiarioSelects();
   const sorted = diarioOrdenado();
@@ -754,13 +781,14 @@ function renderDiario(){
   });
   document.getElementById('headerSaldo').textContent = 'Saldo atual: ' + fmtBRL(saldoAtual());
   const t = document.getElementById('tabelaDiario');
-  let html = '<thead><tr><th>Data</th><th>Histórico</th><th>Categoria</th><th>Associado</th><th>Mês/Ano ref.</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Forma</th><th>Status</th><th>Concil.</th><th></th></tr></thead><tbody>';
-  if (!rows.length) html += '<tr><td colspan="12" class="muted">Nenhum lançamento ainda.</td></tr>';
+  let html = '<thead><tr><th><input type="checkbox" id="chkTodosDiario" onchange="toggleTodosDiario(this.checked)"></th><th>Data</th><th>Histórico</th><th>Categoria</th><th>Associado</th><th>Mês/Ano ref.</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Forma</th><th>Status</th><th>Concil.</th><th></th></tr></thead><tbody>';
+  if (!rows.length) html += '<tr><td colspan="13" class="muted">Nenhum lançamento ainda.</td></tr>';
   rows.forEach(({e, saldo}) => {
     const assoc = e.associadoId ? (getAssociado(e.associadoId)?.nome || '—') : '—';
     const mesAno = e.mesRef ? (MESES[e.mesRef-1] + '/' + e.anoRef) : '—';
     const ent = entradaOf(e), sai = saidaOf(e);
     html += `<tr>
+      <td><input type="checkbox" class="chkDiarioRow" ${diarioSelecionados.has(e.id)?'checked':''} onchange="toggleSelecaoDiario('${e.id}', this.checked)"></td>
       <td>${e.data}</td>
       <td>${e.historico || '—'}</td>
       <td>${e.categoria}</td>
@@ -788,6 +816,7 @@ function renderDiario(){
   });
   html += '</tbody>';
   t.innerHTML = html;
+  atualizarInfoSelecaoDiario();
 }
 
 /* ==================== RECEBIMENTOS ==================== */
