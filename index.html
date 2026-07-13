@@ -199,13 +199,14 @@
   <section class="tab" id="tab-associados">
     <div class="card">
       <h2>Novo associado</h2>
-      <div class="desc">Cadastre cada associado com a categoria e o valor de mensalidade dele (os valores podem variar por pessoa).</div>
+      <div class="desc">Cadastre cada associado com a categoria e o valor de mensalidade dele (os valores podem variar por pessoa). Sócios Honorários são isentos automaticamente na aba Recebimentos; use o campo "Isento" pra dispensar qualquer outro associado individualmente.</div>
       <div class="grid grid-4">
         <div class="field"><label>Nome</label><input id="aNome" placeholder="Ex: João Pereira"></div>
         <div class="field"><label>Categoria</label><select id="aCategoria" onchange="preencherValorPadrao()"></select></div>
         <div class="field"><label>Valor mensalidade (R$)</label><input id="aValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
         <div class="field"><label>Data de ingresso</label><input id="aData" type="date"></div>
       </div>
+      <div class="field"><label><input type="checkbox" id="aIsento" style="width:auto;"> Isento de mensalidade</label></div>
       <div class="field"><label>Observação (opcional)</label><input id="aObs" placeholder="Ex: telefone, e-mail..."></div>
       <button class="btn" onclick="addAssociado()">Adicionar associado</button>
     </div>
@@ -560,16 +561,19 @@ function addAssociado(){
     nome,
     categoria: document.getElementById('aCategoria').value,
     valorMensalidade: Number(document.getElementById('aValor').value) || 0,
+    isento: document.getElementById('aIsento').checked,
     status: 'Ativo',
     dataIngresso: document.getElementById('aData').value || new Date().toISOString().slice(0,10),
     obs: document.getElementById('aObs').value.trim()
   });
   document.getElementById('aNome').value = '';
+  document.getElementById('aIsento').checked = false;
   document.getElementById('aObs').value = '';
   saveState();
   renderAssociados();
   renderDiarioSelects();
 }
+function efetivamenteIsento(a){ return !!a.isento || a.categoria === 'Sócio Honorário'; }
 function updateAssociado(id, field, value){
   const a = getAssociado(id);
   if (!a) return;
@@ -643,13 +647,14 @@ function handleAssocPaste(){
 function renderAssociados(){
   const t = document.getElementById('tabelaAssociados');
   const catOptions = state.categoriasAssociado.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
-  let html = '<thead><tr><th>Nome</th><th>Categoria</th><th>Mensalidade</th><th>Status</th><th>Ingresso</th><th>Observação</th><th></th></tr></thead><tbody>';
-  if (!state.associados.length) html += '<tr><td colspan="7" class="muted">Nenhum associado cadastrado ainda.</td></tr>';
+  let html = '<thead><tr><th>Nome</th><th>Categoria</th><th>Mensalidade</th><th>Isento</th><th>Status</th><th>Ingresso</th><th>Observação</th><th></th></tr></thead><tbody>';
+  if (!state.associados.length) html += '<tr><td colspan="8" class="muted">Nenhum associado cadastrado ainda.</td></tr>';
   state.associados.forEach(a => {
     html += `<tr>
       <td><input value="${a.nome||''}" onchange="updateAssociado('${a.id}','nome',this.value)" style="min-width:140px;"></td>
       <td><select onchange="updateAssociado('${a.id}','categoria',this.value)">${state.categoriasAssociado.map(c=>`<option value="${c.nome}" ${c.nome===a.categoria?'selected':''}>${c.nome}</option>`).join('')}</select></td>
       <td><input type="number" step="0.01" value="${a.valorMensalidade}" onchange="updateAssociado('${a.id}','valorMensalidade',this.value)" style="width:90px;"></td>
+      <td style="text-align:center;"><input type="checkbox" ${a.isento?'checked':''} onchange="updateAssociado('${a.id}','isento',this.checked)"></td>
       <td><select onchange="updateAssociado('${a.id}','status',this.value)"><option ${a.status==='Ativo'?'selected':''}>Ativo</option><option ${a.status==='Inativo'?'selected':''}>Inativo</option></select></td>
       <td><input type="date" value="${a.dataIngresso||''}" onchange="updateAssociado('${a.id}','dataIngresso',this.value)"></td>
       <td><input value="${a.obs||''}" onchange="updateAssociado('${a.id}','obs',this.value)" style="min-width:120px;"></td>
@@ -840,11 +845,12 @@ function renderRecebimentos(){
   if (!ativos.length) html += `<tr><td colspan="16" class="muted">Nenhum associado ativo cadastrado.</td></tr>`;
   const hoje = new Date().toISOString().slice(0,10);
   ativos.forEach(a => {
+    const isento = efetivamenteIsento(a);
     let totalDevido = 0, totalRecebido = 0, valorEmDebito = 0;
     let cells = '';
     MESES_ROTARIOS.forEach(m => {
       const ano = m >= 7 ? anoInicio : anoFim;
-      const devido = Number(a.valorMensalidade) || 0;
+      const devido = isento ? 0 : (Number(a.valorMensalidade) || 0);
       const recebido = valorRecebidoAssociado(a.id, m, ano);
       totalDevido += devido;
       totalRecebido += recebido;
@@ -857,9 +863,11 @@ function renderRecebimentos(){
       cells += `<td>${statusBadge(status)}</td>`;
     });
     const adimplencia = totalDevido > 0 ? Math.round((totalRecebido/totalDevido)*100) : 100;
-    const situacaoHtml = valorEmDebito > 0
-      ? `<div class="badge atrasado" style="margin-top:4px;">Em débito: ${fmtBRL(valorEmDebito)}</div>`
-      : `<div class="badge pago" style="margin-top:4px;">Em dia</div>`;
+    const situacaoHtml = isento
+      ? '<div class="badge na" style="margin-top:4px;">Isento</div>'
+      : (valorEmDebito > 0
+          ? `<div class="badge atrasado" style="margin-top:4px;">Em débito: ${fmtBRL(valorEmDebito)}</div>`
+          : '<div class="badge pago" style="margin-top:4px;">Em dia</div>');
     html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div>${situacaoHtml}</td>${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
   });
   html += '</tbody>';
