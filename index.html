@@ -137,16 +137,42 @@
   .chart-box { height: 260px; position: relative; }
   code { background: #eef1f7; padding: 1px 5px; border-radius: 4px; }
   ::placeholder { color: #9aa4b2; }
+  #lockScreen {
+    position: fixed; inset: 0; z-index: 1000;
+    background: linear-gradient(135deg, var(--azul-escuro), var(--azul));
+    display: flex; align-items: center; justify-content: center;
+  }
+  #lockScreen .lockCard {
+    background: #fff; border-radius: 12px; padding: 28px; width: 320px; max-width: 88vw;
+    box-shadow: 0 10px 40px rgba(0,0,0,.28);
+  }
+  #lockScreen h2 { margin: 0 0 6px; color: var(--azul-escuro); font-size: 18px; }
+  #lockScreen p { color: var(--text-mute); font-size: 12.5px; margin-bottom: 16px; }
+  #lockErro { color: var(--vermelho); font-size: 12.5px; margin-top: 8px; display: none; }
 </style>
 </head>
 <body>
+
+<div id="lockScreen" style="display:flex;">
+  <div class="lockCard">
+    <h2 id="lockTitulo">Controle Financeiro do Clube</h2>
+    <p id="lockDesc">Digite a senha para acessar.</p>
+    <div class="field"><label>Senha</label><input type="password" id="lockSenha" placeholder="Senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
+    <div class="field" id="lockConfirmField" style="display:none;"><label>Confirmar senha</label><input type="password" id="lockSenhaConfirma" placeholder="Repita a senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
+    <button class="btn" style="width:100%;" id="lockBtn" onclick="tentarDesbloquear()">Entrar</button>
+    <div id="lockErro"></div>
+  </div>
+</div>
 
 <header>
   <div>
     <h1>Controle Financeiro do Clube</h1>
     <div class="sub">Recebimentos de associados · Despesas · Diário (livro caixa) · DRE</div>
   </div>
-  <div class="sub" id="headerSaldo"></div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div class="sub" id="headerSaldo"></div>
+    <button class="btn small secondary" onclick="bloquearAgora()">Bloquear</button>
+  </div>
 </header>
 
 <nav id="tabNav"></nav>
@@ -339,6 +365,11 @@
 
   <!-- BACKUP -->
   <section class="tab" id="tab-backup">
+    <div class="card">
+      <h2>Senha de acesso</h2>
+      <div class="desc">É uma trava simples pra afastar curiosos que acharem o link — não é segurança de verdade, já que os dados ficam só neste navegador.</div>
+      <button class="btn secondary" onclick="alterarSenhaAcesso()">Alterar senha de acesso</button>
+    </div>
     <div class="card">
       <h2>Backup dos dados</h2>
       <div class="desc">Os dados ficam salvos neste navegador. Exporte um backup periodicamente para não perder nada.</div>
@@ -1093,6 +1124,81 @@ function limparExemplos(){
   renderPainel(); renderAssociados(); renderDiarioSelects();
 }
 
+/* ==================== SENHA DE ACESSO ==================== */
+const PW_KEY = 'rotary_pw_hash_v1';
+const UNLOCK_KEY = 'rotary_unlocked_v1';
+function hashSimples(str){
+  let hash = 0;
+  for (let i = 0; i < str.length; i++){
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return String(hash);
+}
+function initLock(){
+  const overlay = document.getElementById('lockScreen');
+  const senhaSalva = localStorage.getItem(PW_KEY);
+  if (sessionStorage.getItem(UNLOCK_KEY) === '1'){ overlay.style.display = 'none'; return; }
+  overlay.style.display = 'flex';
+  document.getElementById('lockErro').style.display = 'none';
+  document.getElementById('lockSenha').value = '';
+  if (!senhaSalva){
+    document.getElementById('lockTitulo').textContent = 'Defina uma senha de acesso';
+    document.getElementById('lockDesc').textContent = 'Essa senha vai ser pedida sempre que abrir o app neste navegador.';
+    document.getElementById('lockConfirmField').style.display = 'block';
+    document.getElementById('lockBtn').textContent = 'Definir senha';
+  } else {
+    document.getElementById('lockTitulo').textContent = 'Controle Financeiro do Clube';
+    document.getElementById('lockDesc').textContent = 'Digite a senha para acessar.';
+    document.getElementById('lockConfirmField').style.display = 'none';
+    document.getElementById('lockBtn').textContent = 'Entrar';
+  }
+  document.getElementById('lockSenha').focus();
+}
+function mostrarErroLock(msg){
+  const erro = document.getElementById('lockErro');
+  erro.textContent = msg;
+  erro.style.display = 'block';
+}
+function tentarDesbloquear(){
+  const senhaSalva = localStorage.getItem(PW_KEY);
+  const senha = document.getElementById('lockSenha').value;
+  document.getElementById('lockErro').style.display = 'none';
+  if (!senhaSalva){
+    const confirma = document.getElementById('lockSenhaConfirma').value;
+    if (!senha || senha.length < 4){ mostrarErroLock('A senha precisa ter pelo menos 4 caracteres.'); return; }
+    if (senha !== confirma){ mostrarErroLock('As senhas não coincidem.'); return; }
+    localStorage.setItem(PW_KEY, hashSimples(senha));
+    sessionStorage.setItem(UNLOCK_KEY, '1');
+    document.getElementById('lockScreen').style.display = 'none';
+  } else if (hashSimples(senha) === senhaSalva){
+    sessionStorage.setItem(UNLOCK_KEY, '1');
+    document.getElementById('lockScreen').style.display = 'none';
+  } else {
+    mostrarErroLock('Senha incorreta.');
+    document.getElementById('lockSenha').value = '';
+  }
+}
+function bloquearAgora(){
+  sessionStorage.removeItem(UNLOCK_KEY);
+  initLock();
+}
+function alterarSenhaAcesso(){
+  const senhaSalva = localStorage.getItem(PW_KEY);
+  if (senhaSalva){
+    const atual = prompt('Digite a senha atual:');
+    if (atual === null) return;
+    if (hashSimples(atual) !== senhaSalva){ alert('Senha atual incorreta.'); return; }
+  }
+  const nova = prompt('Digite a nova senha (mínimo 4 caracteres):');
+  if (nova === null) return;
+  if (!nova || nova.length < 4){ alert('A senha precisa ter pelo menos 4 caracteres.'); return; }
+  const confirma = prompt('Confirme a nova senha:');
+  if (nova !== confirma){ alert('As senhas não coincidem.'); return; }
+  localStorage.setItem(PW_KEY, hashSimples(nova));
+  alert('Senha atualizada com sucesso.');
+}
+
 /* ==================== INIT ==================== */
 buildNav();
 renderSelectCategoriasAssociado();
@@ -1100,6 +1206,7 @@ renderDiarioSelects();
 renderAssociados();
 renderDiario();
 showTab('painel');
+initLock();
 </script>
 </body>
 </html>
