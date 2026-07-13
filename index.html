@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle Financeiro — Rotary</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --azul: #17458f;
+    --azul-escuro: #0d2c5c;
+    --dourado: #f4a11a;
+    --verde: #1e8a4c;
+    --vermelho: #c62828;
+    --amarelo: #b8860b;
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --border: #dde3ee;
+    --text: #1f2937;
+    --text-mute: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    background: linear-gradient(90deg, var(--azul-escuro), var(--azul));
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sub { font-size: 12px; opacity: 0.85; }
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: var(--card);
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  nav button {
+    border: none;
+    background: transparent;
+    color: var(--text-mute);
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  nav button:hover { background: var(--bg); }
+  nav button.active { background: var(--azul); color: #fff; }
+  main { padding: 20px 24px 60px; max-width: 1200px; margin: 0 auto; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin-bottom: 18px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 16px; color: var(--azul-escuro); }
+  .card .desc { color: var(--text-mute); font-size: 12.5px; margin-bottom: 14px; }
+  .grid { display: grid; gap: 12px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 900px) { .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr 1fr; } }
+  label { display: block; font-size: 12px; color: var(--text-mute); margin-bottom: 3px; font-weight: 600; }
+  input, select, textarea {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+    color: var(--text);
+    font-family: inherit;
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  .field { margin-bottom: 10px; }
+  .btn {
+    display: inline-block;
+    background: var(--azul);
+    color: #fff;
+    border: none;
+    padding: 9px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--azul-escuro); }
+  .btn.secondary { background: #eef1f7; color: var(--azul-escuro); }
+  .btn.secondary:hover { background: #e2e7f2; }
+  .btn.danger { background: #fdecea; color: var(--vermelho); }
+  .btn.danger:hover { background: #f9d6d3; }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  th { background: #f8f9fc; color: var(--text-mute); font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: .3px; position: sticky; top: 0; }
+  tbody tr:hover { background: #fafbfd; }
+  .table-wrap { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .badge.pago { background: #e3f4ea; color: var(--verde); }
+  .badge.pendente { background: #fdf3e0; color: var(--amarelo); }
+  .badge.atrasado { background: #fdecea; color: var(--vermelho); }
+  .badge.na { background: #eef1f7; color: var(--text-mute); }
+  .kpi { text-align: left; }
+  .kpi .v { font-size: 22px; font-weight: 700; color: var(--azul-escuro); }
+  .kpi .l { font-size: 11.5px; color: var(--text-mute); text-transform: uppercase; letter-spacing: .3px; }
+  .kpi .v.neg { color: var(--vermelho); }
+  .kpi .v.pos { color: var(--verde); }
+  .banner {
+    background: #eaf1fd; border: 1px solid #c6dafb; color: var(--azul-escuro);
+    padding: 10px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 14px;
+  }
+  .banner.warn { background: #fdf3e0; border-color: #f0dca3; color: #7a5a00; }
+  .row-actions button { margin-right: 4px; }
+  .totais td { font-weight: 700; background: #f8f9fc; }
+  .muted { color: var(--text-mute); font-size: 12px; }
+  hr.sep { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .chart-box { height: 260px; position: relative; }
+  code { background: #eef1f7; padding: 1px 5px; border-radius: 4px; }
+  ::placeholder { color: #9aa4b2; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Controle Financeiro do Clube</h1>
+    <div class="sub">Recebimentos de associados · Despesas · Diário (livro caixa) · DRE</div>
+  </div>
+  <div class="sub" id="headerSaldo"></div>
+</header>
+
+<nav id="tabNav"></nav>
+
+<main>
+
+  <!-- PAINEL -->
+  <section class="tab" id="tab-painel">
+    <div class="banner" id="exampleBanner" style="display:none;">
+      Carreguei um associado e um lançamento de <b>exemplo</b> para você ver como preencher. Edite ou apague quando quiser.
+      <button class="btn small secondary" onclick="limparExemplos()">Remover exemplos</button>
+    </div>
+    <div class="grid grid-4" id="kpis"></div>
+    <div class="card">
+      <h2>Receitas x Despesas por mês</h2>
+      <div class="desc">Ano: <select id="painelAno" onchange="renderPainel()" style="width:100px;display:inline-block;"></select></div>
+      <div class="chart-box"><canvas id="chartMensal"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ASSOCIADOS -->
+  <section class="tab" id="tab-associados">
+    <div class="card">
+      <h2>Novo associado</h2>
+      <div class="desc">Cadastre cada associado com a categoria e o valor de mensalidade dele (os valores podem variar por pessoa).</div>
+      <div class="grid grid-4">
+        <div class="field"><label>Nome</label><input id="aNome" placeholder="Ex: João Pereira"></div>
+        <div class="field"><label>Categoria</label><select id="aCategoria" onchange="preencherValorPadrao()"></select></div>
+        <div class="field"><label>Valor mensalidade (R$)</label><input id="aValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label>Data de ingresso</label><input id="aData" type="date"></div>
+      </div>
+      <div class="field"><label>Observação (opcional)</label><input id="aObs" placeholder="Ex: telefone, e-mail..."></div>
+      <button class="btn" onclick="addAssociado()">Adicionar associado</button>
+    </div>
+    <div class="card">
+      <h2>Associados cadastrados</h2>
+      <div class="table-wrap"><table id="tabelaAssociados"></table></div>
+    </div>
+    <div class="card">
+      <h2>Configurações — categorias e formas de pagamento</h2>
+      <div class="desc">Ajuste as listas usadas nos formulários. O valor padrão só é sugerido ao cadastrar um associado novo.</div>
+      <div class="grid grid-3">
+        <div>
+          <label>Categorias de associado (nome / valor padrão)</label>
+          <div id="listaCategoriasAssociado"></div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <input id="novaCatAssocNome" placeholder="Nome da categoria" style="flex:2;">
+            <input id="novaCatAssocValor" type="number" step="0.01" placeholder="Valor" style="flex:1;">
+            <button class="btn small secondary" onclick="addCategoriaAssociado()">+</button>
+          </div>
+        </div>
+        <div>
+          <label>Categorias de despesa</label>
+          <div id="listaCategoriasDespesa"></div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <input id="novaCatDespesa" placeholder="Nova categoria de despesa">
+            <button class="btn small secondary" onclick="addCategoriaDespesa()">+</button>
+          </div>
+        </div>
+        <div>
+          <label>Formas de pagamento</label>
+          <div id="listaFormasPagamento"></div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <input id="novaForma" placeholder="Nova forma de pagamento">
+            <button class="btn small secondary" onclick="addFormaPagamento()">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIARIO -->
+  <section class="tab" id="tab-diario">
+    <div class="card">
+      <h2>Novo lançamento</h2>
+      <div class="desc">
+        Este é o <b>diário</b> (livro caixa): todo recebimento e toda despesa entram aqui, em ordem cronológica, com saldo acumulado.
+        Preencha <b>Associado / Mês / Ano de referência</b> apenas quando a categoria for "Mensalidade Associado".
+      </div>
+      <div class="field"><label>Saldo inicial do caixa/banco (R$)</label>
+        <input id="saldoInicialInput" type="number" step="0.01" onchange="setSaldoInicial()" style="max-width:220px;">
+        <span class="muted">Preencha uma única vez com o saldo em conta na data em que você começou a usar esta planilha.</span>
+      </div>
+      <hr class="sep">
+      <div class="grid grid-4">
+        <div class="field"><label>Data</label><input id="dData" type="date"></div>
+        <div class="field"><label>Categoria</label><select id="dCategoria"></select></div>
+        <div class="field"><label>Valor (R$)</label><input id="dValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="field"><label>Forma de pagamento</label><select id="dForma"></select></div>
+      </div>
+      <div class="grid grid-4">
+        <div class="field"><label>Associado (se mensalidade)</label><select id="dAssociado"><option value="">—</option></select></div>
+        <div class="field"><label>Mês de referência</label><select id="dMes"><option value="">—</option></select></div>
+        <div class="field"><label>Ano de referência</label><input id="dAno" type="number" placeholder="2026"></div>
+        <div class="field"><label>Status</label><select id="dStatus"><option>Pago</option><option>Pendente</option><option>Atrasado</option></select></div>
+      </div>
+      <div class="grid grid-2">
+        <div class="field"><label>Histórico / descrição</label><input id="dHistorico" placeholder="Ex: Mensalidade julho - João Pereira"></div>
+        <div class="field"><label>Conciliado com extrato?</label><select id="dConciliado"><option>Não</option><option>Sim</option></select></div>
+      </div>
+      <button class="btn" onclick="addDiario()">Lançar</button>
+    </div>
+    <div class="card">
+      <h2>Diário (livro caixa)</h2>
+      <div class="desc">Ordenado por data, com saldo acumulado a partir do saldo inicial.</div>
+      <div class="table-wrap"><table id="tabelaDiario"></table></div>
+    </div>
+  </section>
+
+  <!-- RECEBIMENTOS -->
+  <section class="tab" id="tab-recebimentos">
+    <div class="card">
+      <h2>Controle de recebimentos por associado</h2>
+      <div class="desc">
+        Mostra, mês a mês, quem pagou e quem está pendente ou atrasado, comparando o valor devido (cadastro) com o valor recebido (lançado no diário como "Mensalidade Associado").
+      </div>
+      <div class="field" style="max-width:160px;"><label>Ano de referência</label><input id="recAno" type="number" onchange="renderRecebimentos()"></div>
+      <div class="table-wrap"><table id="tabelaRecebimentos"></table></div>
+    </div>
+  </section>
+
+  <!-- DESPESAS -->
+  <section class="tab" id="tab-despesas">
+    <div class="card">
+      <h2>Despesas por categoria</h2>
+      <div class="desc">Somatório mensal das despesas lançadas no diário (pelo mês da data do lançamento).</div>
+      <div class="field" style="max-width:160px;"><label>Ano</label><input id="despAno" type="number" onchange="renderDespesas()"></div>
+      <div class="table-wrap"><table id="tabelaDespesasResumo"></table></div>
+    </div>
+    <div class="card">
+      <h2>Lançamentos de despesa (detalhado)</h2>
+      <div class="table-wrap"><table id="tabelaDespesasDetalhe"></table></div>
+    </div>
+  </section>
+
+  <!-- DRE -->
+  <section class="tab" id="tab-dre">
+    <div class="card">
+      <h2>DRE — Demonstração do Resultado</h2>
+      <div class="desc">Regime de caixa: cada valor entra no mês em que o dinheiro efetivamente entrou ou saiu.</div>
+      <div class="field" style="max-width:160px;"><label>Ano</label><input id="dreAno" type="number" onchange="renderDRE()"></div>
+      <div class="table-wrap"><table id="tabelaDRE"></table></div>
+    </div>
+  </section>
+
+  <!-- IMPORTAR -->
+  <section class="tab" id="tab-importar">
+    <div class="card">
+      <h2>Importar extrato bancário (OFX)</h2>
+      <div class="desc">Exporte o extrato do internet banking em formato <code>.ofx</code> (ou <code>.qfx</code>) e envie aqui. As transações aparecem abaixo para você classificar e adicionar ao diário.</div>
+      <input type="file" id="ofxFile" accept=".ofx,.qfx,.xml" onchange="handleOfxFile(event)">
+    </div>
+    <div class="card">
+      <h2>Ou cole os lançamentos manualmente</h2>
+      <div class="desc">
+        Útil quando o banco só fornece PDF (este assistente não lê PDF de extrato diretamente). Abra o PDF, copie as linhas de data / descrição / valor e cole abaixo,
+        uma transação por linha, separada por ponto e vírgula: <code>13/07/2026;Depósito João Pereira;120,00</code> (use valor negativo para saídas, ex: <code>-45,90</code>).
+      </div>
+      <textarea id="pasteArea" placeholder="13/07/2026;Depósito João Pereira;120,00&#10;14/07/2026;Pagamento aluguel salão;-300,00"></textarea>
+      <button class="btn secondary" style="margin-top:8px;" onclick="handlePaste()">Processar texto colado</button>
+    </div>
+    <div class="card" id="stagingCard" style="display:none;">
+      <h2>Transações para classificar</h2>
+      <div class="desc">Escolha a categoria (e associado/mês, se for mensalidade) de cada linha e clique em "Adicionar ao diário".</div>
+      <div class="table-wrap"><table id="tabelaStaging"></table></div>
+    </div>
+  </section>
+
+  <!-- BACKUP -->
+  <section class="tab" id="tab-backup">
+    <div class="card">
+      <h2>Backup dos dados</h2>
+      <div class="desc">Os dados ficam salvos neste navegador. Exporte um backup periodicamente para não perder nada.</div>
+      <button class="btn" onclick="exportarJSON()">Baixar backup completo (.json)</button>
+      <button class="btn secondary" onclick="exportarCSV('diario')">Baixar diário (.csv)</button>
+      <button class="btn secondary" onclick="exportarCSV('associados')">Baixar associados (.csv)</button>
+    </div>
+    <div class="card">
+      <h2>Restaurar backup</h2>
+      <input type="file" id="restoreFile" accept=".json" onchange="handleRestore(event)">
+    </div>
+    <div class="card">
+      <h2 style="color:var(--vermelho);">Zona de risco</h2>
+      <div class="desc">Apaga todos os associados e lançamentos deste navegador. Não tem como desfazer.</div>
+      <button class="btn danger" onclick="limparTudo()">Apagar todos os dados</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ==================== ESTADO ==================== */
+const STORAGE_KEY = 'rotary_financeiro_v1';
+let seq = 0;
+
+function defaultState(){
+  return {
+    saldoInicial: 0,
+    associados: [],
+    categoriasAssociado: [
+      { nome: 'Sócio Efetivo', valorPadrao: 120 },
+      { nome: 'Sócio Honorário', valorPadrao: 0 },
+      { nome: 'Sócio Contribuinte', valorPadrao: 60 }
+    ],
+    categoriasDespesa: [
+      'Administrativo', 'Reuniões e Eventos', 'Projetos de Serviço à Comunidade',
+      'Contribuições à Fundação Rotária', 'Taxas Distrito/RI', 'Comunicação e Marketing',
+      'Confraternizações', 'Outras Despesas'
+    ],
+    formasPagamento: ['Dinheiro', 'PIX', 'Transferência Bancária', 'Boleto', 'Cartão'],
+    diario: [],
+    seeded: false
+  };
+}
+
+function seedExample(s){
+  const idEx = 'assoc_exemplo';
+  s.associados.push({ id: idEx, nome: 'Maria Silva (exemplo)', categoria: 'Sócio Efetivo', valorMensalidade: 120, status: 'Ativo', dataIngresso: new Date().toISOString().slice(0,10), obs: 'Associado de exemplo — edite ou exclua.' });
+  const today = new Date().toISOString().slice(0,10);
+  s.diario.push({ id: 'diario_exemplo', seq: seq++, data: today, categoria: 'Mensalidade Associado', associadoId: idEx, mesRef: new Date().getMonth()+1, anoRef: new Date().getFullYear(), valor: 120, formaPagamento: 'PIX', status: 'Pago', conciliado: 'Não', historico: 'Mensalidade de exemplo — Maria Silva' });
+  s.seeded = true;
+  return s;
+}
+
+function loadState(){
+  let s = defaultState();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      s = Object.assign(s, parsed);
+    } else {
+      s = seedExample(s);
+    }
+  } catch(e) { console.error('Erro ao carregar dados', e); }
+  seq = (s.diario || []).length ? Math.max(...s.diario.map(d => d.seq || 0)) + 1 : 0;
+  return s;
+}
+
+let state = loadState();
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+/* ==================== HELPERS ==================== */
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MESES_LONGOS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function fmtBRL(n){
+  n = Number(n) || 0;
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function toLocalDate(dataStr){ return new Date(dataStr + 'T00:00:00'); }
+function dataInMonth(dataStr, mes, ano){
+  if (!dataStr) return false;
+  const d = toLocalDate(dataStr);
+  return (d.getMonth()+1 === mes && d.getFullYear() === ano);
+}
+function fimDoMes(ano, mes){
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  return `${ano}-${String(mes).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+}
+function tipoDe(categoria){
+  return (categoria === 'Mensalidade Associado' || categoria === 'Outras Receitas') ? 'Receita' : 'Despesa';
+}
+function getAssociado(id){ return state.associados.find(a => a.id === id); }
+function categoriasDiario(){ return ['Mensalidade Associado', 'Outras Receitas', ...state.categoriasDespesa]; }
+
+function entradaOf(e){ return tipoDe(e.categoria) === 'Receita' ? (Number(e.valor)||0) : 0; }
+function saidaOf(e){ return tipoDe(e.categoria) === 'Despesa' ? (Number(e.valor)||0) : 0; }
+
+function diarioOrdenado(){
+  return [...state.diario].sort((a,b) => a.data.localeCompare(b.data) || (a.seq - b.seq));
+}
+function saldoAteData(dataStr){
+  let saldo = Number(state.saldoInicial) || 0;
+  state.diario.forEach(e => { if (e.data <= dataStr) saldo += entradaOf(e) - saidaOf(e); });
+  return saldo;
+}
+function saldoAtual(){ return saldoAteData(new Date().toISOString().slice(0,10)); }
+
+function valorRecebidoAssociado(associadoId, mes, ano){
+  return state.diario
+    .filter(e => e.categoria === 'Mensalidade Associado' && e.associadoId === associadoId && Number(e.mesRef) === mes && Number(e.anoRef) === ano)
+    .reduce((s,e) => s + (Number(e.valor)||0), 0);
+}
+function totalDespesaCategoriaMes(categoria, mes, ano){
+  return state.diario
+    .filter(e => e.categoria === categoria && dataInMonth(e.data, mes, ano))
+    .reduce((s,e) => s + (Number(e.valor)||0), 0);
+}
+function totalReceitaCategoriaMes(categoria, mes, ano){
+  return state.diario
+    .filter(e => e.categoria === categoria && dataInMonth(e.data, mes, ano))
+    .reduce((s,e) => s + (Number(e.valor)||0), 0);
+}
+
+/* ==================== NAVEGAÇÃO ==================== */
+const TABS = [
+  ['painel', 'Painel'],
+  ['associados', 'Associados'],
+  ['diario', 'Diário'],
+  ['recebimentos', 'Recebimentos'],
+  ['despesas', 'Despesas'],
+  ['dre', 'DRE'],
+  ['importar', 'Importar Extrato'],
+  ['backup', 'Backup']
+];
+function buildNav(){
+  const nav = document.getElementById('tabNav');
+  nav.innerHTML = TABS.map(([id,label]) => `<button id="navbtn-${id}" onclick="showTab('${id}')">${label}</button>`).join('');
+}
+function showTab(id){
+  TABS.forEach(([tid]) => {
+    document.getElementById('tab-'+tid).classList.toggle('active', tid===id);
+    document.getElementById('navbtn-'+tid).classList.toggle('active', tid===id);
+  });
+  if (id==='painel') renderPainel();
+  if (id==='associados') renderAssociados();
+  if (id==='diario') renderDiario();
+  if (id==='recebimentos') renderRecebimentos();
+  if (id==='despesas') renderDespesas();
+  if (id==='dre') renderDRE();
+}
+
+/* ==================== ASSOCIADOS ==================== */
+function renderSelectCategoriasAssociado(){
+  const sel = document.getElementById('aCategoria');
+  sel.innerHTML = state.categoriasAssociado.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+  preencherValorPadrao();
+}
+function preencherValorPadrao(){
+  const nome = document.getElementById('aCategoria').value;
+  const cat = state.categoriasAssociado.find(c => c.nome === nome);
+  if (cat) document.getElementById('aValor').value = cat.valorPadrao;
+}
+function addAssociado(){
+  const nome = document.getElementById('aNome').value.trim();
+  if (!nome){ alert('Informe o nome do associado.'); return; }
+  state.associados.push({
+    id: uid('assoc'),
+    nome,
+    categoria: document.getElementById('aCategoria').value,
+    valorMensalidade: Number(document.getElementById('aValor').value) || 0,
+    status: 'Ativo',
+    dataIngresso: document.getElementById('aData').value || new Date().toISOString().slice(0,10),
+    obs: document.getElementById('aObs').value.trim()
+  });
+  document.getElementById('aNome').value = '';
+  document.getElementById('aObs').value = '';
+  saveState();
+  renderAssociados();
+  renderDiarioSelects();
+}
+function updateAssociado(id, field, value){
+  const a = getAssociado(id);
+  if (!a) return;
+  a[field] = (field === 'valorMensalidade') ? Number(value)||0 : value;
+  saveState();
+  if (field === 'nome') renderDiarioSelects();
+}
+function deleteAssociado(id){
+  if (!confirm('Excluir este associado? Os lançamentos já feitos no diário não serão apagados.')) return;
+  state.associados = state.associados.filter(a => a.id !== id);
+  saveState();
+  renderAssociados();
+  renderDiarioSelects();
+}
+function renderAssociados(){
+  const t = document.getElementById('tabelaAssociados');
+  const catOptions = state.categoriasAssociado.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+  let html = '<thead><tr><th>Nome</th><th>Categoria</th><th>Mensalidade</th><th>Status</th><th>Ingresso</th><th>Observação</th><th></th></tr></thead><tbody>';
+  if (!state.associados.length) html += '<tr><td colspan="7" class="muted">Nenhum associado cadastrado ainda.</td></tr>';
+  state.associados.forEach(a => {
+    html += `<tr>
+      <td><input value="${a.nome||''}" onchange="updateAssociado('${a.id}','nome',this.value)" style="min-width:140px;"></td>
+      <td><select onchange="updateAssociado('${a.id}','categoria',this.value)">${state.categoriasAssociado.map(c=>`<option value="${c.nome}" ${c.nome===a.categoria?'selected':''}>${c.nome}</option>`).join('')}</select></td>
+      <td><input type="number" step="0.01" value="${a.valorMensalidade}" onchange="updateAssociado('${a.id}','valorMensalidade',this.value)" style="width:90px;"></td>
+      <td><select onchange="updateAssociado('${a.id}','status',this.value)"><option ${a.status==='Ativo'?'selected':''}>Ativo</option><option ${a.status==='Inativo'?'selected':''}>Inativo</option></select></td>
+      <td><input type="date" value="${a.dataIngresso||''}" onchange="updateAssociado('${a.id}','dataIngresso',this.value)"></td>
+      <td><input value="${a.obs||''}" onchange="updateAssociado('${a.id}','obs',this.value)" style="min-width:120px;"></td>
+      <td><button class="btn small danger" onclick="deleteAssociado('${a.id}')">Excluir</button></td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  t.innerHTML = html;
+  renderConfigListas();
+}
+function renderConfigListas(){
+  document.getElementById('listaCategoriasAssociado').innerHTML = state.categoriasAssociado.map((c,i) =>
+    `<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+      <input value="${c.nome}" onchange="state.categoriasAssociado[${i}].nome=this.value;saveState();renderAssociados();" style="flex:2;">
+      <input type="number" step="0.01" value="${c.valorPadrao}" onchange="state.categoriasAssociado[${i}].valorPadrao=Number(this.value)||0;saveState();" style="flex:1;">
+      <button class="btn small danger" onclick="removeCategoriaAssociado(${i})">x</button>
+    </div>`).join('');
+  document.getElementById('listaCategoriasDespesa').innerHTML = state.categoriasDespesa.map((c,i) =>
+    `<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+      <input value="${c}" onchange="state.categoriasDespesa[${i}]=this.value;saveState();renderDiarioSelects();" style="flex:1;">
+      <button class="btn small danger" onclick="removeCategoriaDespesa(${i})">x</button>
+    </div>`).join('');
+  document.getElementById('listaFormasPagamento').innerHTML = state.formasPagamento.map((c,i) =>
+    `<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+      <input value="${c}" onchange="state.formasPagamento[${i}]=this.value;saveState();renderDiarioSelects();" style="flex:1;">
+      <button class="btn small danger" onclick="removeFormaPagamento(${i})">x</button>
+    </div>`).join('');
+}
+function addCategoriaAssociado(){
+  const nome = document.getElementById('novaCatAssocNome').value.trim();
+  const valor = Number(document.getElementById('novaCatAssocValor').value) || 0;
+  if (!nome) return;
+  state.categoriasAssociado.push({ nome, valorPadrao: valor });
+  document.getElementById('novaCatAssocNome').value = '';
+  document.getElementById('novaCatAssocValor').value = '';
+  saveState(); renderSelectCategoriasAssociado(); renderAssociados();
+}
+function removeCategoriaAssociado(i){ state.categoriasAssociado.splice(i,1); saveState(); renderSelectCategoriasAssociado(); renderAssociados(); }
+function addCategoriaDespesa(){
+  const v = document.getElementById('novaCatDespesa').value.trim();
+  if (!v) return;
+  state.categoriasDespesa.push(v);
+  document.getElementById('novaCatDespesa').value = '';
+  saveState(); renderDiarioSelects(); renderConfigListas();
+}
+function removeCategoriaDespesa(i){ state.categoriasDespesa.splice(i,1); saveState(); renderDiarioSelects(); renderConfigListas(); }
+function addFormaPagamento(){
+  const v = document.getElementById('novaForma').value.trim();
+  if (!v) return;
+  state.formasPagamento.push(v);
+  document.getElementById('novaForma').value = '';
+  saveState(); renderDiarioSelects(); renderConfigListas();
+}
+function removeFormaPagamento(i){ state.formasPagamento.splice(i,1); saveState(); renderDiarioSelects(); renderConfigListas(); }
+
+/* ==================== DIÁRIO ==================== */
+function renderDiarioSelects(){
+  document.getElementById('dCategoria').innerHTML = categoriasDiario().map(c => `<option value="${c}">${c}</option>`).join('');
+  document.getElementById('dForma').innerHTML = state.formasPagamento.map(f => `<option value="${f}">${f}</option>`).join('');
+  document.getElementById('dAssociado').innerHTML = '<option value="">—</option>' + state.associados.map(a => `<option value="${a.id}">${a.nome}</option>`).join('');
+  document.getElementById('dMes').innerHTML = '<option value="">—</option>' + MESES_LONGOS.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+  if (!document.getElementById('dAno').value) document.getElementById('dAno').value = new Date().getFullYear();
+  document.getElementById('saldoInicialInput').value = state.saldoInicial;
+}
+function setSaldoInicial(){
+  state.saldoInicial = Number(document.getElementById('saldoInicialInput').value) || 0;
+  saveState();
+  renderDiario();
+}
+function addDiario(){
+  const data = document.getElementById('dData').value;
+  const valor = Number(document.getElementById('dValor').value);
+  if (!data){ alert('Informe a data.'); return; }
+  if (!valor || valor <= 0){ alert('Informe um valor maior que zero.'); return; }
+  const categoria = document.getElementById('dCategoria').value;
+  state.diario.push({
+    id: uid('diario'), seq: seq++,
+    data, categoria, valor,
+    associadoId: document.getElementById('dAssociado').value || '',
+    mesRef: document.getElementById('dMes').value || '',
+    anoRef: document.getElementById('dAno').value || '',
+    formaPagamento: document.getElementById('dForma').value,
+    status: document.getElementById('dStatus').value,
+    conciliado: document.getElementById('dConciliado').value,
+    historico: document.getElementById('dHistorico').value.trim()
+  });
+  document.getElementById('dValor').value = '';
+  document.getElementById('dHistorico').value = '';
+  saveState();
+  renderDiario();
+}
+function deleteDiario(id){
+  if (!confirm('Excluir este lançamento?')) return;
+  state.diario = state.diario.filter(d => d.id !== id);
+  saveState();
+  renderDiario();
+}
+function updateDiarioField(id, field, value){
+  const e = state.diario.find(d => d.id === id);
+  if (!e) return;
+  e[field] = value;
+  saveState();
+  renderDiario();
+}
+function statusBadge(status){
+  const cls = status === 'Pago' ? 'pago' : status === 'Atrasado' ? 'atrasado' : status === 'N/A' ? 'na' : 'pendente';
+  return `<span class="badge ${cls}">${status}</span>`;
+}
+function renderDiario(){
+  renderDiarioSelects();
+  const sorted = diarioOrdenado();
+  let running = Number(state.saldoInicial) || 0;
+  const rows = sorted.map(e => {
+    running += entradaOf(e) - saidaOf(e);
+    return { e, saldo: running };
+  });
+  document.getElementById('headerSaldo').textContent = 'Saldo atual: ' + fmtBRL(saldoAtual());
+  const t = document.getElementById('tabelaDiario');
+  let html = '<thead><tr><th>Data</th><th>Histórico</th><th>Categoria</th><th>Associado</th><th>Mês/Ano ref.</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Forma</th><th>Status</th><th>Concil.</th><th></th></tr></thead><tbody>';
+  if (!rows.length) html += '<tr><td colspan="12" class="muted">Nenhum lançamento ainda.</td></tr>';
+  rows.forEach(({e, saldo}) => {
+    const assoc = e.associadoId ? (getAssociado(e.associadoId)?.nome || '—') : '—';
+    const mesAno = e.mesRef ? (MESES[e.mesRef-1] + '/' + e.anoRef) : '—';
+    const ent = entradaOf(e), sai = saidaOf(e);
+    html += `<tr>
+      <td>${e.data}</td>
+      <td>${e.historico || '—'}</td>
+      <td>${e.categoria}</td>
+      <td>${assoc}</td>
+      <td>${mesAno}</td>
+      <td style="color:var(--verde);">${ent ? fmtBRL(ent) : ''}</td>
+      <td style="color:var(--vermelho);">${sai ? fmtBRL(sai) : ''}</td>
+      <td><b>${fmtBRL(saldo)}</b></td>
+      <td>${e.formaPagamento||''}</td>
+      <td>
+        <select onchange="updateDiarioField('${e.id}','status',this.value)">
+          <option ${e.status==='Pago'?'selected':''}>Pago</option>
+          <option ${e.status==='Pendente'?'selected':''}>Pendente</option>
+          <option ${e.status==='Atrasado'?'selected':''}>Atrasado</option>
+        </select>
+      </td>
+      <td>
+        <select onchange="updateDiarioField('${e.id}','conciliado',this.value)">
+          <option ${e.conciliado==='Não'?'selected':''}>Não</option>
+          <option ${e.conciliado==='Sim'?'selected':''}>Sim</option>
+        </select>
+      </td>
+      <td><button class="btn small danger" onclick="deleteDiario('${e.id}')">Excluir</button></td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  t.innerHTML = html;
+}
+
+/* ==================== RECEBIMENTOS ==================== */
+function renderRecebimentos(){
+  if (!document.getElementById('recAno').value) document.getElementById('recAno').value = new Date().getFullYear();
+  const ano = Number(document.getElementById('recAno').value);
+  const ativos = state.associados.filter(a => a.status === 'Ativo');
+  const t = document.getElementById('tabelaRecebimentos');
+  let html = '<thead><tr><th>Associado</th>' + MESES.map(m => `<th>${m}</th>`).join('') + '<th>Total devido</th><th>Total recebido</th><th>Adimplência</th></tr></thead><tbody>';
+  if (!ativos.length) html += `<tr><td colspan="16" class="muted">Nenhum associado ativo cadastrado.</td></tr>`;
+  const hoje = new Date().toISOString().slice(0,10);
+  ativos.forEach(a => {
+    let totalDevido = 0, totalRecebido = 0;
+    let cells = '';
+    for (let m=1; m<=12; m++){
+      const devido = Number(a.valorMensalidade) || 0;
+      const recebido = valorRecebidoAssociado(a.id, m, ano);
+      totalDevido += devido;
+      totalRecebido += recebido;
+      let status;
+      if (devido === 0) status = 'N/A';
+      else if (recebido >= devido) status = 'Pago';
+      else if (hoje > fimDoMes(ano, m)) status = 'Atrasado';
+      else status = 'Pendente';
+      cells += `<td>${statusBadge(status)}</td>`;
+    }
+    const adimplencia = totalDevido > 0 ? Math.round((totalRecebido/totalDevido)*100) : 100;
+    html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div></td>${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
+  });
+  html += '</tbody>';
+  t.innerHTML = html;
+}
+
+/* ==================== DESPESAS ==================== */
+function renderDespesas(){
+  if (!document.getElementById('despAno').value) document.getElementById('despAno').value = new Date().getFullYear();
+  const ano = Number(document.getElementById('despAno').value);
+  const t1 = document.getElementById('tabelaDespesasResumo');
+  let html = '<thead><tr><th>Categoria</th>' + MESES.map(m=>`<th>${m}</th>`).join('') + '<th>Total ano</th></tr></thead><tbody>';
+  const totaisMes = new Array(12).fill(0);
+  state.categoriasDespesa.forEach(cat => {
+    let totalAno = 0;
+    let cells = '';
+    for (let m=1;m<=12;m++){
+      const v = totalDespesaCategoriaMes(cat, m, ano);
+      totalAno += v; totaisMes[m-1] += v;
+      cells += `<td>${v ? fmtBRL(v) : '—'}</td>`;
+    }
+    html += `<tr><td>${cat}</td>${cells}<td><b>${fmtBRL(totalAno)}</b></td></tr>`;
+  });
+  html += `<tr class="totais"><td>Total</td>${totaisMes.map(v=>`<td>${fmtBRL(v)}</td>`).join('')}<td>${fmtBRL(totaisMes.reduce((s,v)=>s+v,0))}</td></tr>`;
+  html += '</tbody>';
+  t1.innerHTML = html;
+
+  const t2 = document.getElementById('tabelaDespesasDetalhe');
+  const despesas = diarioOrdenado().filter(e => tipoDe(e.categoria) === 'Despesa' && toLocalDate(e.data).getFullYear() === ano);
+  let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th></tr></thead><tbody>';
+  if (!despesas.length) html2 += '<tr><td colspan="6" class="muted">Nenhuma despesa lançada neste ano.</td></tr>';
+  despesas.forEach(e => {
+    html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td></tr>`;
+  });
+  html2 += '</tbody>';
+  t2.innerHTML = html2;
+}
+
+/* ==================== DRE ==================== */
+function dreData(ano){
+  const receitaMensalidade = [], outrasReceitas = [], totalReceitas = [], totalDespesas = [], resultado = [], saldoFimMes = [];
+  const despesasPorCategoria = state.categoriasDespesa.map(() => []);
+  for (let m=1; m<=12; m++){
+    const rm = totalReceitaCategoriaMes('Mensalidade Associado', m, ano);
+    const or_ = totalReceitaCategoriaMes('Outras Receitas', m, ano);
+    receitaMensalidade.push(rm);
+    outrasReceitas.push(or_);
+    totalReceitas.push(rm + or_);
+    let despMes = 0;
+    state.categoriasDespesa.forEach((cat, i) => {
+      const v = totalDespesaCategoriaMes(cat, m, ano);
+      despesasPorCategoria[i].push(v);
+      despMes += v;
+    });
+    totalDespesas.push(despMes);
+    resultado.push((rm+or_) - despMes);
+    saldoFimMes.push(saldoAteData(fimDoMes(ano, m)));
+  }
+  return { receitaMensalidade, outrasReceitas, totalReceitas, despesasPorCategoria, totalDespesas, resultado, saldoFimMes };
+}
+function somaArr(a){ return a.reduce((s,v)=>s+v,0); }
+function renderDRE(){
+  if (!document.getElementById('dreAno').value) document.getElementById('dreAno').value = new Date().getFullYear();
+  const ano = Number(document.getElementById('dreAno').value);
+  const d = dreData(ano);
+  const t = document.getElementById('tabelaDRE');
+  let html = '<thead><tr><th>Linha</th>' + MESES.map(m=>`<th>${m}</th>`).join('') + '<th>Total ano</th></tr></thead><tbody>';
+  const linha = (label, arr, bold) => `<tr${bold?' class="totais"':''}><td>${label}</td>${arr.map(v=>`<td>${v?fmtBRL(v):'—'}</td>`).join('')}<td>${fmtBRL(somaArr(arr))}</td></tr>`;
+  html += linha('Receita de Mensalidades', d.receitaMensalidade);
+  html += linha('Outras Receitas', d.outrasReceitas);
+  html += linha('(=) Total de Receitas', d.totalReceitas, true);
+  state.categoriasDespesa.forEach((cat, i) => { html += linha('(-) ' + cat, d.despesasPorCategoria[i]); });
+  html += linha('(=) Total de Despesas', d.totalDespesas, true);
+  html += `<tr class="totais"><td>(=) Resultado do período</td>${d.resultado.map(v=>`<td style="color:${v<0?'var(--vermelho)':'var(--verde)'}">${fmtBRL(v)}</td>`).join('')}<td style="color:${somaArr(d.resultado)<0?'var(--vermelho)':'var(--verde)'}"><b>${fmtBRL(somaArr(d.resultado))}</b></td></tr>`;
+  html += `<tr><td>Saldo acumulado (fim do mês)</td>${d.saldoFimMes.map(v=>`<td>${fmtBRL(v)}</td>`).join('')}<td>${fmtBRL(d.saldoFimMes[11])}</td></tr>`;
+  html += '</tbody>';
+  t.innerHTML = html;
+}
+
+/* ==================== PAINEL ==================== */
+let chartMensal = null;
+function renderPainel(){
+  document.getElementById('exampleBanner').style.display = state.seeded ? 'block' : 'none';
+  const anoSel = document.getElementById('painelAno');
+  const anoAtual = new Date().getFullYear();
+  if (!anoSel.dataset.built){
+    anoSel.innerHTML = [anoAtual-1, anoAtual, anoAtual+1].map(a => `<option value="${a}" ${a===anoAtual?'selected':''}>${a}</option>`).join('');
+    anoSel.dataset.built = '1';
+  }
+  const ano = Number(anoSel.value || anoAtual);
+  const mesAtual = new Date().getMonth()+1;
+  const recebidoMes = totalReceitaCategoriaMes('Mensalidade Associado', mesAtual, anoAtual) + totalReceitaCategoriaMes('Outras Receitas', mesAtual, anoAtual);
+  const despesaMes = state.categoriasDespesa.reduce((s,cat)=> s + totalDespesaCategoriaMes(cat, mesAtual, anoAtual), 0);
+  const ativos = state.associados.filter(a=>a.status==='Ativo');
+  let pendentesCount = 0;
+  ativos.forEach(a => {
+    const devido = Number(a.valorMensalidade)||0;
+    const recebido = valorRecebidoAssociado(a.id, mesAtual, anoAtual);
+    if (devido > 0 && recebido < devido) pendentesCount++;
+  });
+  const kpis = [
+    { label: 'Saldo atual', valor: fmtBRL(saldoAtual()), cls: '' },
+    { label: 'Recebido no mês', valor: fmtBRL(recebidoMes), cls: 'pos' },
+    { label: 'Despesas no mês', valor: fmtBRL(despesaMes), cls: 'neg' },
+    { label: 'Associados pendentes/atrasados no mês', valor: pendentesCount + ' de ' + ativos.length, cls: pendentesCount>0?'neg':'' }
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(k => `<div class="card kpi"><div class="v ${k.cls}">${k.valor}</div><div class="l">${k.label}</div></div>`).join('');
+
+  const d = dreData(ano);
+  const ctx = document.getElementById('chartMensal').getContext('2d');
+  if (chartMensal) chartMensal.destroy();
+  chartMensal = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MESES,
+      datasets: [
+        { label: 'Receitas', data: d.totalReceitas, backgroundColor: '#1e8a4c' },
+        { label: 'Despesas', data: d.totalDespesas, backgroundColor: '#c62828' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { y: { ticks: { callback: v => 'R$ ' + v } } }
+    }
+  });
+}
+
+/* ==================== IMPORTAR EXTRATO ==================== */
+let stagingTransactions = [];
+
+function parseOFX(text){
+  const out = [];
+  const blocks = text.split(/<STMTTRN>/i).slice(1);
+  blocks.forEach(block => {
+    const seg = block.split(/<\/STMTTRN>/i)[0];
+    const dt = (seg.match(/<DTPOSTED>([^\r\n<]+)/i) || [])[1];
+    const amt = (seg.match(/<TRNAMT>([^\r\n<]+)/i) || [])[1];
+    const name = (seg.match(/<NAME>([^\r\n<]+)/i) || seg.match(/<MEMO>([^\r\n<]+)/i) || [])[1];
+    if (dt && amt){
+      const y = dt.slice(0,4), mo = dt.slice(4,6), da = dt.slice(6,8);
+      out.push({ data: `${y}-${mo}-${da}`, historico: (name||'Transação importada').trim(), valor: parseFloat(amt.trim().replace(',','.')) });
+    }
+  });
+  return out;
+}
+function toISODate(s){
+  s = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return null;
+}
+function parsePaste(text){
+  const out = [];
+  text.split('\n').map(l=>l.trim()).filter(Boolean).forEach(line => {
+    const parts = line.split(';').map(p=>p.trim());
+    if (parts.length >= 3){
+      const iso = toISODate(parts[0]);
+      const desc = parts[1];
+      const valor = parseFloat(parts[2].replace(/\./g,'').replace(',','.'));
+      if (iso && !isNaN(valor)) out.push({ data: iso, historico: desc, valor });
+    }
+  });
+  return out;
+}
+function handleOfxFile(ev){
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const txs = parseOFX(e.target.result);
+    if (!txs.length){ alert('Não encontrei transações neste arquivo. Confira se é um OFX válido.'); return; }
+    stagingTransactions = stagingTransactions.concat(txs.map(t => ({...t, id: uid('stg')})));
+    renderStaging();
+  };
+  reader.readAsText(file);
+}
+function handlePaste(){
+  const txt = document.getElementById('pasteArea').value;
+  const txs = parsePaste(txt);
+  if (!txs.length){ alert('Não consegui interpretar nenhuma linha. Confira o formato: data;descrição;valor'); return; }
+  stagingTransactions = stagingTransactions.concat(txs.map(t => ({...t, id: uid('stg')})));
+  renderStaging();
+}
+function renderStaging(){
+  document.getElementById('stagingCard').style.display = stagingTransactions.length ? 'block' : 'none';
+  const t = document.getElementById('tabelaStaging');
+  const catOpts = categoriasDiario().map(c=>`<option value="${c}">${c}</option>`).join('');
+  const assocOpts = '<option value="">—</option>' + state.associados.map(a=>`<option value="${a.id}">${a.nome}</option>`).join('');
+  const mesOpts = '<option value="">—</option>' + MESES_LONGOS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  let html = '<thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Associado</th><th>Mês ref.</th><th>Ano ref.</th><th></th></tr></thead><tbody>';
+  stagingTransactions.forEach(t2 => {
+    const catDefault = t2.valor < 0 ? 'Outras Despesas' : 'Outras Receitas';
+    html += `<tr>
+      <td>${t2.data}</td>
+      <td>${t2.historico}</td>
+      <td style="color:${t2.valor<0?'var(--vermelho)':'var(--verde)'}">${fmtBRL(t2.valor)}</td>
+      <td><select id="stgCat_${t2.id}">${categoriasDiario().map(c=>`<option value="${c}" ${c===catDefault?'selected':''}>${c}</option>`).join('')}</select></td>
+      <td><select id="stgAssoc_${t2.id}">${assocOpts}</select></td>
+      <td><select id="stgMes_${t2.id}">${mesOpts}</select></td>
+      <td><input id="stgAno_${t2.id}" type="number" value="${new Date(t2.data).getFullYear()}" style="width:70px;"></td>
+      <td><button class="btn small" onclick="confirmarStaging('${t2.id}')">Adicionar ao diário</button> <button class="btn small danger" onclick="descartarStaging('${t2.id}')">Descartar</button></td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  t.innerHTML = html;
+}
+function confirmarStaging(id){
+  const t = stagingTransactions.find(x => x.id === id);
+  if (!t) return;
+  const categoria = document.getElementById('stgCat_'+id).value;
+  state.diario.push({
+    id: uid('diario'), seq: seq++,
+    data: t.data, categoria, valor: Math.abs(t.valor),
+    associadoId: document.getElementById('stgAssoc_'+id).value || '',
+    mesRef: document.getElementById('stgMes_'+id).value || '',
+    anoRef: document.getElementById('stgAno_'+id).value || '',
+    formaPagamento: 'Transferência Bancária',
+    status: 'Pago', conciliado: 'Sim',
+    historico: t.historico
+  });
+  stagingTransactions = stagingTransactions.filter(x => x.id !== id);
+  saveState();
+  renderStaging();
+}
+function descartarStaging(id){
+  stagingTransactions = stagingTransactions.filter(x => x.id !== id);
+  renderStaging();
+}
+
+/* ==================== BACKUP ==================== */
+function download(filename, content, type){
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportarJSON(){
+  download('controle_financeiro_backup_' + new Date().toISOString().slice(0,10) + '.json', JSON.stringify(state, null, 2), 'application/json');
+}
+function csvEscape(v){ return '"' + String(v==null?'':v).replace(/"/g,'""') + '"'; }
+function exportarCSV(qual){
+  let rows = [];
+  if (qual === 'diario'){
+    rows.push(['Data','Histórico','Categoria','Associado','Mês Ref','Ano Ref','Valor','Tipo','Forma Pagamento','Status','Conciliado']);
+    diarioOrdenado().forEach(e => rows.push([e.data, e.historico, e.categoria, e.associadoId?getAssociado(e.associadoId)?.nome:'', e.mesRef, e.anoRef, e.valor, tipoDe(e.categoria), e.formaPagamento, e.status, e.conciliado]));
+  } else {
+    rows.push(['Nome','Categoria','Valor Mensalidade','Status','Data Ingresso','Observação']);
+    state.associados.forEach(a => rows.push([a.nome, a.categoria, a.valorMensalidade, a.status, a.dataIngresso, a.obs]));
+  }
+  const csv = rows.map(r => r.map(csvEscape).join(';')).join('\r\n');
+  download(qual + '_' + new Date().toISOString().slice(0,10) + '.csv', '﻿' + csv, 'text/csv;charset=utf-8');
+}
+function handleRestore(ev){
+  const file = ev.target.files[0];
+  if (!file) return;
+  if (!confirm('Isso vai substituir todos os dados atuais pelos dados do backup. Continuar?')) { ev.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      state = Object.assign(defaultState(), parsed);
+      seq = (state.diario||[]).length ? Math.max(...state.diario.map(d=>d.seq||0)) + 1 : 0;
+      saveState();
+      showTab('painel');
+      alert('Backup restaurado com sucesso.');
+    } catch(err){ alert('Arquivo inválido.'); }
+  };
+  reader.readAsText(file);
+}
+function limparTudo(){
+  if (!confirm('Tem certeza? Isso apaga TODOS os associados e lançamentos deste navegador.')) return;
+  state = defaultState();
+  saveState();
+  showTab('painel');
+}
+function limparExemplos(){
+  state.associados = state.associados.filter(a => a.id !== 'assoc_exemplo');
+  state.diario = state.diario.filter(d => d.id !== 'diario_exemplo');
+  state.seeded = false;
+  saveState();
+  renderPainel(); renderAssociados(); renderDiarioSelects();
+}
+
+/* ==================== INIT ==================== */
+buildNav();
+renderSelectCategoriasAssociado();
+renderDiarioSelects();
+renderAssociados();
+renderDiario();
+showTab('painel');
+</script>
+</body>
+</html>
