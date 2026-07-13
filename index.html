@@ -360,8 +360,9 @@
     </div>
     <div class="card" id="stagingCard" style="display:none;">
       <h2>Transações para classificar</h2>
-      <div class="desc">Escolha a categoria (e associado/mês, se for mensalidade) de cada linha e clique em "Adicionar ao diário".</div>
-      <div class="table-wrap"><table id="tabelaStaging"></table></div>
+      <div class="desc">Clique em "Conciliar com o Diário" pra eu comparar cada transação com o que já foi lançado: o que já está no diário eu marco como conciliado, e pro que for novo eu já deixo uma sugestão de categoria (e associado, quando for mensalidade). Depois é só conferir e clicar em "Adicionar ao diário".</div>
+      <button class="btn secondary" onclick="conciliarStaging()">Conciliar com o Diário</button>
+      <div class="table-wrap" style="margin-top:12px;"><table id="tabelaStaging"></table></div>
     </div>
   </section>
 
@@ -1024,24 +1025,95 @@ function handlePaste(){
   stagingTransactions = stagingTransactions.concat(txs.map(t => ({...t, id: uid('stg')})));
   renderStaging();
 }
+function normalizarTexto(s){
+  return (s||'').toLowerCase().normalize('NFD').replace(new RegExp('[̀-ͯ]','g'),'').replace(/[^a-z0-9 ]/g,' ');
+}
+function palavrasSignificativas(s){
+  return normalizarTexto(s).split(/\s+/).filter(w => w.length >= 4);
+}
+function sugerirCategoria(t){
+  const desc = normalizarTexto(t.historico);
+  const ativos = state.associados.filter(a => a.status === 'Ativo');
+  const d = toLocalDate(t.data);
+  // 1) nome de associado aparece na descrição
+  for (const a of ativos){
+    const partesNome = normalizarTexto(a.nome).split(/\s+/).filter(w => w.length >= 3);
+    if (partesNome.length && partesNome.some(p => desc.includes(p))){
+      return { categoria: 'Mensalidade Associado', associadoId: a.id, mesRef: d.getMonth()+1, anoRef: d.getFullYear() };
+    }
+  }
+  // 2) valor bate com a mensalidade de um único associado ativo
+  if (t.valor > 0){
+    const candidatos = ativos.filter(a => Math.abs((Number(a.valorMensalidade)||0) - t.valor) < 0.01 && Number(a.valorMensalidade) > 0);
+    if (candidatos.length === 1){
+      return { categoria: 'Mensalidade Associado', associadoId: candidatos[0].id, mesRef: d.getMonth()+1, anoRef: d.getFullYear() };
+    }
+  }
+  // 3) descrição parecida com algum lançamento já feito no diário
+  const palavrasNovas = palavrasSignificativas(t.historico);
+  if (palavrasNovas.length){
+    let melhor = null, melhorScore = 0;
+    state.diario.forEach(e => {
+      const score = palavrasSignificativas(e.historico).filter(p => palavrasNovas.includes(p)).length;
+      if (score > melhorScore){ melhorScore = score; melhor = e; }
+    });
+    if (melhor){
+      return { categoria: melhor.categoria, associadoId: '', mesRef: '', anoRef: '' };
+    }
+  }
+  // 4) padrão pelo sinal do valor
+  return { categoria: t.valor < 0 ? 'Outras Despesas' : 'Outras Receitas', associadoId: '', mesRef: '', anoRef: '' };
+}
+function jaNoDiario(t, usados){
+  return state.diario.find(e => !usados.has(e.id) && e.data === t.data && Math.abs((entradaOf(e) - saidaOf(e)) - t.valor) < 0.01);
+}
+function conciliarStaging(){
+  if (!stagingTransactions.length){ alert('Não há transações importadas. Envie um extrato ou cole o texto primeiro.'); return; }
+  const usados = new Set();
+  let conciliados = 0, sugeridos = 0;
+  stagingTransactions.forEach(t2 => {
+    const match = jaNoDiario(t2, usados);
+    if (match){
+      usados.add(match.id);
+      t2.status = 'conciliado';
+      if (match.conciliado !== 'Sim'){ match.conciliado = 'Sim'; }
+      conciliados++;
+    } else {
+      t2.status = 'novo';
+      t2.sugestao = sugerirCategoria(t2);
+      sugeridos++;
+    }
+  });
+  saveState();
+  renderStaging();
+  alert(conciliados + ' transação(ões) já estavam no diário (marquei como conciliadas) e ' + sugeridos + ' são novas — já deixei uma sugestão de categoria em cada uma, confira antes de adicionar.');
+}
 function renderStaging(){
   document.getElementById('stagingCard').style.display = stagingTransactions.length ? 'block' : 'none';
   const t = document.getElementById('tabelaStaging');
-  const catOpts = categoriasDiario().map(c=>`<option value="${c}">${c}</option>`).join('');
-  const assocOpts = '<option value="">—</option>' + state.associados.map(a=>`<option value="${a.id}">${a.nome}</option>`).join('');
-  const mesOpts = '<option value="">—</option>' + MESES_LONGOS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
-  let html = '<thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Associado</th><th>Mês ref.</th><th>Ano ref.</th><th></th></tr></thead><tbody>';
+  let html = '<thead><tr><th>Status</th><th>Data</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Associado</th><th>Mês ref.</th><th>Ano ref.</th><th></th></tr></thead><tbody>';
   stagingTransactions.forEach(t2 => {
-    const catDefault = t2.valor < 0 ? 'Outras Despesas' : 'Outras Receitas';
+    const sug = t2.sugestao || null;
+    const catDefault = sug ? sug.categoria : (t2.valor < 0 ? 'Outras Despesas' : 'Outras Receitas');
+    const assocDefault = sug ? sug.associadoId : '';
+    const mesDefault = sug ? Number(sug.mesRef) : '';
+    const anoDefault = sug && sug.anoRef ? sug.anoRef : toLocalDate(t2.data).getFullYear();
+    let statusHtml = '<span class="badge na">A conciliar</span>';
+    if (t2.status === 'conciliado') statusHtml = '<span class="badge pago">Já no diário</span>';
+    else if (t2.status === 'novo') statusHtml = '<span class="badge pendente">Novo — sugestão aplicada</span>';
+    const acaoHtml = t2.status === 'conciliado'
+      ? `<button class="btn small danger" onclick="descartarStaging('${t2.id}')">Remover da lista</button>`
+      : `<button class="btn small" onclick="confirmarStaging('${t2.id}')">Adicionar ao diário</button> <button class="btn small danger" onclick="descartarStaging('${t2.id}')">Descartar</button>`;
     html += `<tr>
+      <td>${statusHtml}</td>
       <td>${t2.data}</td>
       <td>${t2.historico}</td>
       <td style="color:${t2.valor<0?'var(--vermelho)':'var(--verde)'}">${fmtBRL(t2.valor)}</td>
       <td><select id="stgCat_${t2.id}">${categoriasDiario().map(c=>`<option value="${c}" ${c===catDefault?'selected':''}>${c}</option>`).join('')}</select></td>
-      <td><select id="stgAssoc_${t2.id}">${assocOpts}</select></td>
-      <td><select id="stgMes_${t2.id}">${mesOpts}</select></td>
-      <td><input id="stgAno_${t2.id}" type="number" value="${new Date(t2.data).getFullYear()}" style="width:70px;"></td>
-      <td><button class="btn small" onclick="confirmarStaging('${t2.id}')">Adicionar ao diário</button> <button class="btn small danger" onclick="descartarStaging('${t2.id}')">Descartar</button></td>
+      <td><select id="stgAssoc_${t2.id}"><option value="">—</option>${state.associados.map(a=>`<option value="${a.id}" ${a.id===assocDefault?'selected':''}>${a.nome}</option>`).join('')}</select></td>
+      <td><select id="stgMes_${t2.id}"><option value="">—</option>${MESES_LONGOS.map((m,i)=>`<option value="${i+1}" ${(i+1)===mesDefault?'selected':''}>${m}</option>`).join('')}</select></td>
+      <td><input id="stgAno_${t2.id}" type="number" value="${anoDefault}" style="width:70px;"></td>
+      <td>${acaoHtml}</td>
     </tr>`;
   });
   html += '</tbody>';
