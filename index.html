@@ -303,7 +303,11 @@
       <div class="desc">
         Mostra, mês a mês, quem pagou e quem está pendente ou atrasado, comparando o valor devido (cadastro) com o valor recebido (lançado no diário como "Mensalidade Associado").
       </div>
-      <div class="field" style="max-width:160px;"><label>Ano de referência</label><input id="recAno" type="number" onchange="renderRecebimentos()"></div>
+      <div class="field" style="max-width:260px;">
+        <label>Ano rotário (ano de início)</label>
+        <input id="recAno" type="number" onchange="renderRecebimentos()">
+        <div class="muted" id="recAnoPeriodo" style="margin-top:4px;"></div>
+      </div>
       <div class="table-wrap"><table id="tabelaRecebimentos"></table></div>
     </div>
   </section>
@@ -453,6 +457,11 @@ function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); 
 /* ==================== HELPERS ==================== */
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_LONGOS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MESES_ROTARIOS = [7,8,9,10,11,12,1,2,3,4,5,6];
+function anoRotarioInicioAtual(){
+  const hoje = new Date();
+  return (hoje.getMonth()+1) >= 7 ? hoje.getFullYear() : hoje.getFullYear() - 1;
+}
 
 function fmtBRL(n){
   n = Number(n) || 0;
@@ -821,17 +830,20 @@ function renderDiario(){
 
 /* ==================== RECEBIMENTOS ==================== */
 function renderRecebimentos(){
-  if (!document.getElementById('recAno').value) document.getElementById('recAno').value = new Date().getFullYear();
-  const ano = Number(document.getElementById('recAno').value);
+  if (!document.getElementById('recAno').value) document.getElementById('recAno').value = anoRotarioInicioAtual();
+  const anoInicio = Number(document.getElementById('recAno').value);
+  const anoFim = anoInicio + 1;
+  document.getElementById('recAnoPeriodo').textContent = 'Período: 01/07/' + anoInicio + ' a 30/06/' + anoFim;
   const ativos = state.associados.filter(a => a.status === 'Ativo');
   const t = document.getElementById('tabelaRecebimentos');
-  let html = '<thead><tr><th>Associado</th>' + MESES.map(m => `<th>${m}</th>`).join('') + '<th>Total devido</th><th>Total recebido</th><th>Adimplência</th></tr></thead><tbody>';
+  let html = '<thead><tr><th>Associado</th>' + MESES_ROTARIOS.map(m => `<th>${MESES[m-1]}</th>`).join('') + '<th>Total devido</th><th>Total recebido</th><th>Adimplência</th></tr></thead><tbody>';
   if (!ativos.length) html += `<tr><td colspan="16" class="muted">Nenhum associado ativo cadastrado.</td></tr>`;
   const hoje = new Date().toISOString().slice(0,10);
   ativos.forEach(a => {
     let totalDevido = 0, totalRecebido = 0;
     let cells = '';
-    for (let m=1; m<=12; m++){
+    MESES_ROTARIOS.forEach(m => {
+      const ano = m >= 7 ? anoInicio : anoFim;
       const devido = Number(a.valorMensalidade) || 0;
       const recebido = valorRecebidoAssociado(a.id, m, ano);
       totalDevido += devido;
@@ -842,7 +854,7 @@ function renderRecebimentos(){
       else if (hoje > fimDoMes(ano, m)) status = 'Atrasado';
       else status = 'Pendente';
       cells += `<td>${statusBadge(status)}</td>`;
-    }
+    });
     const adimplencia = totalDevido > 0 ? Math.round((totalRecebido/totalDevido)*100) : 100;
     html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div></td>${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
   });
