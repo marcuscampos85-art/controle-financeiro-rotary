@@ -840,7 +840,7 @@ function renderRecebimentos(){
   if (!ativos.length) html += `<tr><td colspan="16" class="muted">Nenhum associado ativo cadastrado.</td></tr>`;
   const hoje = new Date().toISOString().slice(0,10);
   ativos.forEach(a => {
-    let totalDevido = 0, totalRecebido = 0;
+    let totalDevido = 0, totalRecebido = 0, valorEmDebito = 0;
     let cells = '';
     MESES_ROTARIOS.forEach(m => {
       const ano = m >= 7 ? anoInicio : anoFim;
@@ -853,10 +853,14 @@ function renderRecebimentos(){
       else if (recebido >= devido) status = 'Pago';
       else if (hoje > fimDoMes(ano, m)) status = 'Atrasado';
       else status = 'Pendente';
+      if (status === 'Atrasado') valorEmDebito += (devido - recebido);
       cells += `<td>${statusBadge(status)}</td>`;
     });
     const adimplencia = totalDevido > 0 ? Math.round((totalRecebido/totalDevido)*100) : 100;
-    html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div></td>${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
+    const situacaoHtml = valorEmDebito > 0
+      ? `<div class="badge atrasado" style="margin-top:4px;">Em débito: ${fmtBRL(valorEmDebito)}</div>`
+      : `<div class="badge pago" style="margin-top:4px;">Em dia</div>`;
+    html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div>${situacaoHtml}</td>${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
   });
   html += '</tbody>';
   t.innerHTML = html;
