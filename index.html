@@ -157,10 +157,24 @@
   <div class="lockCard">
     <h2 id="lockTitulo">Controle Financeiro do Clube</h2>
     <p id="lockDesc">Entre com seu e-mail e senha.</p>
-    <div class="field"><label>E-mail</label><input type="email" id="lockEmail" placeholder="seuemail@exemplo.com" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
-    <div class="field"><label>Senha</label><input type="password" id="lockSenha" placeholder="Senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
-    <div class="field" id="lockConfirmField" style="display:none;"><label>Confirmar senha</label><input type="password" id="lockSenhaConfirma" placeholder="Repita a senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
-    <button class="btn" style="width:100%;" id="lockBtn" onclick="tentarDesbloquear()">Entrar</button>
+    <div id="lockLoginFields">
+      <div class="field"><label>E-mail</label><input type="email" id="lockEmail" placeholder="seuemail@exemplo.com" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
+      <div class="field"><label>Senha</label><input type="password" id="lockSenha" placeholder="Senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
+      <div class="field" id="lockConfirmField" style="display:none;"><label>Confirmar senha</label><input type="password" id="lockSenhaConfirma" placeholder="Repita a senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
+      <button class="btn" style="width:100%;" id="lockBtn" onclick="tentarDesbloquear()">Entrar</button>
+      <div id="lockEsqueciWrap" style="margin-top:10px;text-align:center;">
+        <a href="#" style="font-size:12.5px;color:var(--azul);" onclick="mostrarRecuperarSenha();return false;">Esqueci minha senha</a>
+      </div>
+    </div>
+    <div id="lockRecuperarFields" style="display:none;">
+      <div class="field"><label>E-mail cadastrado</label><input type="email" id="lockRecEmail" placeholder="seuemail@exemplo.com" onkeydown="if(event.key==='Enter') redefinirSenha()"></div>
+      <div class="field"><label>Nova senha</label><input type="password" id="lockRecSenha" placeholder="Nova senha" onkeydown="if(event.key==='Enter') redefinirSenha()"></div>
+      <div class="field"><label>Confirmar nova senha</label><input type="password" id="lockRecSenhaConfirma" placeholder="Repita a nova senha" onkeydown="if(event.key==='Enter') redefinirSenha()"></div>
+      <button class="btn" style="width:100%;" onclick="redefinirSenha()">Redefinir senha</button>
+      <div style="margin-top:10px;text-align:center;">
+        <a href="#" style="font-size:12.5px;color:var(--azul);" onclick="voltarParaLogin();return false;">Voltar para o login</a>
+      </div>
+    </div>
     <div id="lockErro"></div>
   </div>
 </div>
@@ -173,7 +187,7 @@
   <div style="display:flex; align-items:center; gap:10px;">
     <div class="sub" id="headerEmail"></div>
     <div class="sub" id="headerSaldo"></div>
-    <button class="btn small secondary" onclick="bloquearAgora()">Bloquear</button>
+    <button class="btn small secondary" onclick="bloquearAgora()">Sair</button>
   </div>
 </header>
 
@@ -1268,6 +1282,8 @@ function initLock(){
   const overlay = document.getElementById('lockScreen');
   const senhaSalva = localStorage.getItem(PW_KEY);
   const emailSalvo = localStorage.getItem(EMAIL_KEY);
+  document.getElementById('lockLoginFields').style.display = 'block';
+  document.getElementById('lockRecuperarFields').style.display = 'none';
   if (sessionStorage.getItem(UNLOCK_KEY) === '1'){
     overlay.style.display = 'none';
     document.getElementById('headerEmail').textContent = emailSalvo ? emailSalvo : '';
@@ -1282,14 +1298,46 @@ function initLock(){
     document.getElementById('lockConfirmField').style.display = 'block';
     document.getElementById('lockBtn').textContent = 'Definir acesso';
     document.getElementById('lockEmail').value = '';
+    document.getElementById('lockEsqueciWrap').style.display = 'none';
   } else {
     document.getElementById('lockTitulo').textContent = 'Controle Financeiro do Clube';
     document.getElementById('lockDesc').textContent = 'Entre com seu e-mail e senha.';
     document.getElementById('lockConfirmField').style.display = 'none';
     document.getElementById('lockBtn').textContent = 'Entrar';
     document.getElementById('lockEmail').value = emailSalvo || '';
+    document.getElementById('lockEsqueciWrap').style.display = 'block';
   }
   document.getElementById('lockEmail').focus();
+}
+function mostrarRecuperarSenha(){
+  document.getElementById('lockLoginFields').style.display = 'none';
+  document.getElementById('lockRecuperarFields').style.display = 'block';
+  document.getElementById('lockErro').style.display = 'none';
+  document.getElementById('lockTitulo').textContent = 'Redefinir senha';
+  document.getElementById('lockDesc').textContent = 'Confirme o e-mail cadastrado e defina uma nova senha.';
+  document.getElementById('lockRecEmail').value = localStorage.getItem(EMAIL_KEY) || '';
+  document.getElementById('lockRecSenha').value = '';
+  document.getElementById('lockRecSenhaConfirma').value = '';
+  document.getElementById('lockRecEmail').focus();
+}
+function voltarParaLogin(){
+  initLock();
+}
+function redefinirSenha(){
+  const emailSalvo = localStorage.getItem(EMAIL_KEY);
+  const email = document.getElementById('lockRecEmail').value.trim();
+  const nova = document.getElementById('lockRecSenha').value;
+  const confirma = document.getElementById('lockRecSenhaConfirma').value;
+  document.getElementById('lockErro').style.display = 'none';
+  if (!emailSalvo){ mostrarErroLock('Nenhum acesso configurado ainda.'); return; }
+  if (!email || email.toLowerCase() !== emailSalvo.toLowerCase()){ mostrarErroLock('E-mail não corresponde ao cadastrado.'); return; }
+  if (!nova || nova.length < 4){ mostrarErroLock('A nova senha precisa ter pelo menos 4 caracteres.'); return; }
+  if (nova !== confirma){ mostrarErroLock('As senhas não coincidem.'); return; }
+  localStorage.setItem(PW_KEY, hashSimples(nova));
+  voltarParaLogin();
+  document.getElementById('lockEmail').value = email;
+  document.getElementById('lockSenha').focus();
+  alert('Senha redefinida com sucesso. Entre com a nova senha.');
 }
 function mostrarErroLock(msg){
   const erro = document.getElementById('lockErro');
