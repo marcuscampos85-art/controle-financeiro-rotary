@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Controle Financeiro — Rotary</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
   :root {
     color-scheme: light;
@@ -157,25 +158,44 @@
   <div class="lockCard">
     <h2 id="lockTitulo">Controle Financeiro do Clube</h2>
     <p id="lockDesc">Entre com seu e-mail e senha.</p>
+
     <div id="lockLoginFields">
-      <div class="field"><label>E-mail</label><input type="email" id="lockEmail" placeholder="seuemail@exemplo.com" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
-      <div class="field"><label>Senha</label><input type="password" id="lockSenha" placeholder="Senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
-      <div class="field" id="lockConfirmField" style="display:none;"><label>Confirmar senha</label><input type="password" id="lockSenhaConfirma" placeholder="Repita a senha" onkeydown="if(event.key==='Enter') tentarDesbloquear()"></div>
-      <button class="btn" style="width:100%;" id="lockBtn" onclick="tentarDesbloquear()">Entrar</button>
+      <div class="field"><label>E-mail</label><input type="email" id="lockEmail" placeholder="seuemail@exemplo.com" onkeydown="if(event.key==='Enter') fazerLogin()"></div>
+      <div class="field"><label>Senha</label><input type="password" id="lockSenha" placeholder="Senha" onkeydown="if(event.key==='Enter') fazerLogin()"></div>
+      <button class="btn" style="width:100%;" id="lockBtn" onclick="fazerLogin()">Entrar</button>
       <div id="lockEsqueciWrap" style="margin-top:10px;text-align:center;">
         <a href="#" style="font-size:12.5px;color:var(--azul);" onclick="mostrarRecuperarSenha();return false;">Esqueci minha senha</a>
+        &nbsp;·&nbsp;
+        <a href="#" style="font-size:12.5px;color:var(--azul);" onclick="mostrarCadastro();return false;">Criar uma conta</a>
       </div>
     </div>
+
     <div id="lockRecuperarFields" style="display:none;">
-      <div class="field"><label>E-mail cadastrado</label><input type="email" id="lockRecEmail" placeholder="seuemail@exemplo.com" onkeydown="if(event.key==='Enter') redefinirSenha()"></div>
-      <div class="field"><label>Nova senha</label><input type="password" id="lockRecSenha" placeholder="Nova senha" onkeydown="if(event.key==='Enter') redefinirSenha()"></div>
-      <div class="field"><label>Confirmar nova senha</label><input type="password" id="lockRecSenhaConfirma" placeholder="Repita a nova senha" onkeydown="if(event.key==='Enter') redefinirSenha()"></div>
-      <button class="btn" style="width:100%;" onclick="redefinirSenha()">Redefinir senha</button>
+      <div class="field"><label>E-mail cadastrado</label><input type="email" id="lockRecEmail" placeholder="seuemail@exemplo.com" onkeydown="if(event.key==='Enter') enviarRecuperarSenha()"></div>
+      <button class="btn" style="width:100%;" onclick="enviarRecuperarSenha()">Enviar link de redefinição</button>
       <div style="margin-top:10px;text-align:center;">
         <a href="#" style="font-size:12.5px;color:var(--azul);" onclick="voltarParaLogin();return false;">Voltar para o login</a>
       </div>
     </div>
+
+    <div id="lockNovaSenhaFields" style="display:none;">
+      <div class="field"><label>Nova senha</label><input type="password" id="lockNovaSenha" placeholder="Nova senha" onkeydown="if(event.key==='Enter') salvarNovaSenhaRecuperada()"></div>
+      <div class="field"><label>Confirmar nova senha</label><input type="password" id="lockNovaSenhaConfirma" placeholder="Repita a nova senha" onkeydown="if(event.key==='Enter') salvarNovaSenhaRecuperada()"></div>
+      <button class="btn" style="width:100%;" onclick="salvarNovaSenhaRecuperada()">Salvar nova senha</button>
+    </div>
+
+    <div id="lockCadastroFields" style="display:none;">
+      <div class="field"><label>E-mail</label><input type="email" id="lockCadEmail" placeholder="seuemail@exemplo.com"></div>
+      <div class="field"><label>Senha</label><input type="password" id="lockCadSenha" placeholder="Senha (mínimo 6 caracteres)"></div>
+      <div class="field"><label>Confirmar senha</label><input type="password" id="lockCadSenhaConfirma" placeholder="Repita a senha" onkeydown="if(event.key==='Enter') criarConta()"></div>
+      <button class="btn" style="width:100%;" onclick="criarConta()">Criar conta</button>
+      <div style="margin-top:10px;text-align:center;">
+        <a href="#" style="font-size:12.5px;color:var(--azul);" onclick="voltarParaLogin();return false;">Voltar para o login</a>
+      </div>
+    </div>
+
     <div id="lockErro"></div>
+    <div id="lockMsg" style="color:var(--verde);font-size:12.5px;margin-top:8px;display:none;"></div>
   </div>
 </div>
 
@@ -401,13 +421,13 @@
   <!-- BACKUP -->
   <section class="tab" id="tab-backup">
     <div class="card">
-      <h2>E-mail e senha de acesso</h2>
-      <div class="desc">É uma trava simples pra afastar curiosos que acharem o link — não é segurança de verdade (o e-mail não é verificado), já que os dados ficam só neste navegador.</div>
-      <button class="btn secondary" onclick="alterarSenhaAcesso()">Alterar e-mail/senha de acesso</button>
+      <h2>Senha de acesso</h2>
+      <div class="desc">O login agora é de verdade (Supabase Auth): seus dados ficam num banco na nuvem, protegidos por autenticação real. Só quem tem uma conta criada consegue entrar. Para adicionar acesso de outras pessoas do clube, é preciso criar a conta delas no painel do Supabase (fale comigo se precisar do passo a passo).</div>
+      <button class="btn secondary" onclick="alterarSenhaAcesso()">Alterar minha senha</button>
     </div>
     <div class="card">
       <h2>Backup dos dados</h2>
-      <div class="desc">Os dados ficam salvos neste navegador. Exporte um backup periodicamente para não perder nada.</div>
+      <div class="desc">Os dados ficam salvos na nuvem (Supabase), acessíveis de qualquer computador com login. Mesmo assim, exporte um backup periodicamente como segurança extra.</div>
       <button class="btn" onclick="exportarJSON()">Baixar backup completo (.json)</button>
       <button class="btn secondary" onclick="exportarCSV('diario')">Baixar diário (.csv)</button>
       <button class="btn secondary" onclick="exportarCSV('associados')">Baixar associados (.csv)</button>
@@ -428,6 +448,9 @@
 <script>
 /* ==================== ESTADO ==================== */
 const STORAGE_KEY = 'rotary_financeiro_v1';
+const SUPABASE_URL = 'https://zrcdpkkqpnximnhmpdhu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_MjOxWzHOgbpb6vR8BL4ngg_St2HGF_M';
+const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let seq = 0;
 
 function defaultState(){
@@ -459,23 +482,40 @@ function seedExample(s){
   return s;
 }
 
-function loadState(){
-  let s = defaultState();
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      s = Object.assign(s, parsed);
-    } else {
-      s = seedExample(s);
-    }
-  } catch(e) { console.error('Erro ao carregar dados', e); }
-  seq = (s.diario || []).length ? Math.max(...s.diario.map(d => d.seq || 0)) + 1 : 0;
-  return s;
+let state = defaultState();
+function recalcularSeq(){
+  seq = (state.diario || []).length ? Math.max(...state.diario.map(d => d.seq || 0)) + 1 : 0;
 }
-
-let state = loadState();
-function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+async function carregarEstado(){
+  try {
+    const { data, error } = await sbClient.from('app_state').select('data').eq('id','main').maybeSingle();
+    if (error) throw error;
+    if (data && data.data) {
+      state = Object.assign(defaultState(), data.data);
+    } else {
+      state = seedExample(defaultState());
+      await saveState();
+    }
+  } catch(e) {
+    console.error('Erro ao carregar dados do servidor', e);
+    alert('Não foi possível carregar os dados do servidor. Verifique sua conexão com a internet e recarregue a página.');
+  }
+  recalcularSeq();
+}
+async function saveState(){
+  try {
+    const { data: { user } } = await sbClient.auth.getUser();
+    const { error } = await sbClient.from('app_state').upsert({
+      id: 'main',
+      data: state,
+      updated_at: new Date().toISOString(),
+      updated_by: user ? user.id : null
+    });
+    if (error) throw error;
+  } catch(e) {
+    console.error('Erro ao salvar dados no servidor', e);
+  }
+}
 
 /* ==================== HELPERS ==================== */
 const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
@@ -1291,146 +1331,166 @@ function limparExemplos(){
   renderPainel(); renderAssociados(); renderDiarioSelects();
 }
 
-/* ==================== E-MAIL E SENHA DE ACESSO ==================== */
-const PW_KEY = 'rotary_pw_hash_v1';
-const EMAIL_KEY = 'rotary_email_v1';
-const UNLOCK_KEY = 'rotary_unlocked_v1';
-function hashSimples(str){
-  let hash = 0;
-  for (let i = 0; i < str.length; i++){
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return String(hash);
-}
-function emailValido(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
-function initLock(){
-  const overlay = document.getElementById('lockScreen');
-  const senhaSalva = localStorage.getItem(PW_KEY);
-  const emailSalvo = localStorage.getItem(EMAIL_KEY);
-  document.getElementById('lockLoginFields').style.display = 'block';
-  document.getElementById('lockRecuperarFields').style.display = 'none';
-  if (sessionStorage.getItem(UNLOCK_KEY) === '1'){
-    overlay.style.display = 'none';
-    document.getElementById('headerEmail').textContent = emailSalvo ? emailSalvo : '';
-    return;
-  }
-  overlay.style.display = 'flex';
+/* ==================== LOGIN (Supabase Auth) ==================== */
+function esconderMsgsLock(){
   document.getElementById('lockErro').style.display = 'none';
-  document.getElementById('lockSenha').value = '';
-  if (!senhaSalva){
-    document.getElementById('lockTitulo').textContent = 'Defina seu e-mail e senha de acesso';
-    document.getElementById('lockDesc').textContent = 'Serão pedidos sempre que abrir o app neste navegador.';
-    document.getElementById('lockConfirmField').style.display = 'block';
-    document.getElementById('lockBtn').textContent = 'Definir acesso';
-    document.getElementById('lockEmail').value = '';
-    document.getElementById('lockEsqueciWrap').style.display = 'none';
-  } else {
-    document.getElementById('lockTitulo').textContent = 'Controle Financeiro do Clube';
-    document.getElementById('lockDesc').textContent = 'Entre com seu e-mail e senha.';
-    document.getElementById('lockConfirmField').style.display = 'none';
-    document.getElementById('lockBtn').textContent = 'Entrar';
-    document.getElementById('lockEmail').value = emailSalvo || '';
-    document.getElementById('lockEsqueciWrap').style.display = 'block';
-  }
-  document.getElementById('lockEmail').focus();
-}
-function mostrarRecuperarSenha(){
-  document.getElementById('lockLoginFields').style.display = 'none';
-  document.getElementById('lockRecuperarFields').style.display = 'block';
-  document.getElementById('lockErro').style.display = 'none';
-  document.getElementById('lockTitulo').textContent = 'Redefinir senha';
-  document.getElementById('lockDesc').textContent = 'Confirme o e-mail cadastrado e defina uma nova senha.';
-  document.getElementById('lockRecEmail').value = localStorage.getItem(EMAIL_KEY) || '';
-  document.getElementById('lockRecSenha').value = '';
-  document.getElementById('lockRecSenhaConfirma').value = '';
-  document.getElementById('lockRecEmail').focus();
-}
-function voltarParaLogin(){
-  initLock();
-}
-function redefinirSenha(){
-  const emailSalvo = localStorage.getItem(EMAIL_KEY);
-  const email = document.getElementById('lockRecEmail').value.trim();
-  const nova = document.getElementById('lockRecSenha').value;
-  const confirma = document.getElementById('lockRecSenhaConfirma').value;
-  document.getElementById('lockErro').style.display = 'none';
-  if (!emailSalvo){ mostrarErroLock('Nenhum acesso configurado ainda.'); return; }
-  if (!email || email.toLowerCase() !== emailSalvo.toLowerCase()){ mostrarErroLock('E-mail não corresponde ao cadastrado.'); return; }
-  if (!nova || nova.length < 4){ mostrarErroLock('A nova senha precisa ter pelo menos 4 caracteres.'); return; }
-  if (nova !== confirma){ mostrarErroLock('As senhas não coincidem.'); return; }
-  localStorage.setItem(PW_KEY, hashSimples(nova));
-  voltarParaLogin();
-  document.getElementById('lockEmail').value = email;
-  document.getElementById('lockSenha').focus();
-  alert('Senha redefinida com sucesso. Entre com a nova senha.');
+  document.getElementById('lockMsg').style.display = 'none';
 }
 function mostrarErroLock(msg){
   const erro = document.getElementById('lockErro');
   erro.textContent = msg;
   erro.style.display = 'block';
+  document.getElementById('lockMsg').style.display = 'none';
 }
-function tentarDesbloquear(){
-  const senhaSalva = localStorage.getItem(PW_KEY);
-  const emailSalvo = localStorage.getItem(EMAIL_KEY);
+function mostrarMsgLock(msg){
+  const el = document.getElementById('lockMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  document.getElementById('lockErro').style.display = 'none';
+}
+function traduzErroAuth(error){
+  const msg = (error && error.message) || 'Erro desconhecido.';
+  if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (msg.includes('Email not confirmed')) return 'Este e-mail ainda não foi confirmado.';
+  if (msg.includes('rate limit')) return 'Muitas tentativas seguidas. Aguarde um pouco e tente de novo.';
+  return 'Erro: ' + msg;
+}
+function mostrarTelaLogin(){
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('lockLoginFields').style.display = 'block';
+  document.getElementById('lockRecuperarFields').style.display = 'none';
+  document.getElementById('lockNovaSenhaFields').style.display = 'none';
+  document.getElementById('lockCadastroFields').style.display = 'none';
+  document.getElementById('lockTitulo').textContent = 'Controle Financeiro do Clube';
+  document.getElementById('lockDesc').textContent = 'Entre com seu e-mail e senha.';
+  document.getElementById('headerEmail').textContent = '';
+  esconderMsgsLock();
+  document.getElementById('lockEmail').focus();
+}
+function voltarParaLogin(){
+  mostrarTelaLogin();
+}
+function mostrarRecuperarSenha(){
+  document.getElementById('lockLoginFields').style.display = 'none';
+  document.getElementById('lockRecuperarFields').style.display = 'block';
+  document.getElementById('lockNovaSenhaFields').style.display = 'none';
+  document.getElementById('lockCadastroFields').style.display = 'none';
+  document.getElementById('lockTitulo').textContent = 'Redefinir senha';
+  document.getElementById('lockDesc').textContent = 'Informe seu e-mail cadastrado. Vamos enviar um link de redefinição por e-mail.';
+  esconderMsgsLock();
+  document.getElementById('lockRecEmail').value = document.getElementById('lockEmail').value || '';
+  document.getElementById('lockRecEmail').focus();
+}
+function mostrarCadastro(){
+  document.getElementById('lockLoginFields').style.display = 'none';
+  document.getElementById('lockRecuperarFields').style.display = 'none';
+  document.getElementById('lockNovaSenhaFields').style.display = 'none';
+  document.getElementById('lockCadastroFields').style.display = 'block';
+  document.getElementById('lockTitulo').textContent = 'Criar minha conta';
+  document.getElementById('lockDesc').textContent = 'Você vai receber um e-mail de confirmação antes de conseguir entrar.';
+  esconderMsgsLock();
+  document.getElementById('lockCadEmail').value = document.getElementById('lockEmail').value || '';
+  document.getElementById('lockCadSenha').value = '';
+  document.getElementById('lockCadSenhaConfirma').value = '';
+  document.getElementById('lockCadEmail').focus();
+}
+async function criarConta(){
+  const email = document.getElementById('lockCadEmail').value.trim();
+  const senha = document.getElementById('lockCadSenha').value;
+  const confirma = document.getElementById('lockCadSenhaConfirma').value;
+  esconderMsgsLock();
+  if (!email){ mostrarErroLock('Informe o e-mail.'); return; }
+  if (!senha || senha.length < 6){ mostrarErroLock('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  if (senha !== confirma){ mostrarErroLock('As senhas não coincidem.'); return; }
+  const redirectTo = window.location.origin + window.location.pathname;
+  const { error } = await sbClient.auth.signUp({ email, password: senha, options: { emailRedirectTo: redirectTo } });
+  if (error){ mostrarErroLock(traduzErroAuth(error)); return; }
+  mostrarMsgLock('Conta criada! Verifique seu e-mail (e o spam) e clique no link de confirmação antes de entrar.');
+}
+async function enviarRecuperarSenha(){
+  const email = document.getElementById('lockRecEmail').value.trim();
+  esconderMsgsLock();
+  if (!email){ mostrarErroLock('Informe o e-mail.'); return; }
+  const redirectTo = window.location.origin + window.location.pathname;
+  const { error } = await sbClient.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error){ mostrarErroLock(traduzErroAuth(error)); return; }
+  mostrarMsgLock('Se esse e-mail estiver cadastrado, você vai receber um link de redefinição. Confira sua caixa de entrada (e o spam).');
+}
+function mostrarDefinirNovaSenha(){
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('lockLoginFields').style.display = 'none';
+  document.getElementById('lockRecuperarFields').style.display = 'none';
+  document.getElementById('lockNovaSenhaFields').style.display = 'block';
+  document.getElementById('lockCadastroFields').style.display = 'none';
+  document.getElementById('lockTitulo').textContent = 'Defina sua nova senha';
+  document.getElementById('lockDesc').textContent = 'Você clicou no link de redefinição enviado por e-mail. Escolha sua nova senha.';
+  esconderMsgsLock();
+  document.getElementById('lockNovaSenha').value = '';
+  document.getElementById('lockNovaSenhaConfirma').value = '';
+}
+async function salvarNovaSenhaRecuperada(){
+  const nova = document.getElementById('lockNovaSenha').value;
+  const confirma = document.getElementById('lockNovaSenhaConfirma').value;
+  esconderMsgsLock();
+  if (!nova || nova.length < 6){ mostrarErroLock('A senha precisa ter pelo menos 6 caracteres.'); return; }
+  if (nova !== confirma){ mostrarErroLock('As senhas não coincidem.'); return; }
+  const { error } = await sbClient.auth.updateUser({ password: nova });
+  if (error){ mostrarErroLock(traduzErroAuth(error)); return; }
+  mostrarMsgLock('Senha atualizada com sucesso! Entrando...');
+  setTimeout(() => { mostrarTelaLogin(); }, 1200);
+}
+async function fazerLogin(){
   const email = document.getElementById('lockEmail').value.trim();
   const senha = document.getElementById('lockSenha').value;
-  document.getElementById('lockErro').style.display = 'none';
-  if (!email || !emailValido(email)){ mostrarErroLock('Digite um e-mail válido.'); return; }
-  if (!senhaSalva){
-    const confirma = document.getElementById('lockSenhaConfirma').value;
-    if (!senha || senha.length < 4){ mostrarErroLock('A senha precisa ter pelo menos 4 caracteres.'); return; }
-    if (senha !== confirma){ mostrarErroLock('As senhas não coincidem.'); return; }
-    localStorage.setItem(PW_KEY, hashSimples(senha));
-    localStorage.setItem(EMAIL_KEY, email);
-    sessionStorage.setItem(UNLOCK_KEY, '1');
-    document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('headerEmail').textContent = email;
-  } else if (email.toLowerCase() !== (emailSalvo||'').toLowerCase()){
-    mostrarErroLock('E-mail não corresponde ao cadastrado.');
-  } else if (hashSimples(senha) === senhaSalva){
-    sessionStorage.setItem(UNLOCK_KEY, '1');
-    document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('headerEmail').textContent = emailSalvo;
-  } else {
-    mostrarErroLock('Senha incorreta.');
-    document.getElementById('lockSenha').value = '';
-  }
+  esconderMsgsLock();
+  if (!email || !senha){ mostrarErroLock('Informe e-mail e senha.'); return; }
+  const { error } = await sbClient.auth.signInWithPassword({ email, password: senha });
+  if (error){ mostrarErroLock(traduzErroAuth(error)); return; }
+  // onAuthStateChange cuida de carregar os dados e liberar a tela.
 }
-function bloquearAgora(){
-  sessionStorage.removeItem(UNLOCK_KEY);
-  initLock();
+async function bloquearAgora(){
+  await sbClient.auth.signOut();
 }
-function alterarSenhaAcesso(){
-  const senhaSalva = localStorage.getItem(PW_KEY);
-  const emailSalvo = localStorage.getItem(EMAIL_KEY);
-  if (senhaSalva){
-    const atual = prompt('Digite a senha atual:');
-    if (atual === null) return;
-    if (hashSimples(atual) !== senhaSalva){ alert('Senha atual incorreta.'); return; }
-  }
-  const novoEmail = prompt('E-mail de acesso:', emailSalvo || '');
-  if (novoEmail === null) return;
-  if (!emailValido(novoEmail.trim())){ alert('E-mail inválido.'); return; }
-  const nova = prompt('Digite a nova senha (mínimo 4 caracteres):');
+async function alterarSenhaAcesso(){
+  const nova = prompt('Digite a nova senha (mínimo 6 caracteres):');
   if (nova === null) return;
-  if (!nova || nova.length < 4){ alert('A senha precisa ter pelo menos 4 caracteres.'); return; }
+  if (!nova || nova.length < 6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
   const confirma = prompt('Confirme a nova senha:');
   if (nova !== confirma){ alert('As senhas não coincidem.'); return; }
-  localStorage.setItem(PW_KEY, hashSimples(nova));
-  localStorage.setItem(EMAIL_KEY, novoEmail.trim());
-  document.getElementById('headerEmail').textContent = novoEmail.trim();
-  alert('E-mail e senha atualizados com sucesso.');
+  const { error } = await sbClient.auth.updateUser({ password: nova });
+  if (error){ alert(traduzErroAuth(error)); return; }
+  alert('Senha atualizada com sucesso.');
+}
+async function entrarComSessao(session){
+  document.getElementById('headerEmail').textContent = session.user.email;
+  await carregarEstado();
+  renderSelectCategoriasAssociado();
+  renderDiarioSelects();
+  renderAssociados();
+  renderDiario();
+  showTab('painel');
+  document.getElementById('lockScreen').style.display = 'none';
 }
 
 /* ==================== INIT ==================== */
 buildNav();
-renderSelectCategoriasAssociado();
-renderDiarioSelects();
-renderAssociados();
-renderDiario();
 showTab('painel');
-initLock();
+
+sbClient.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY'){
+    mostrarDefinirNovaSenha();
+    return;
+  }
+  if (event === 'SIGNED_OUT'){
+    mostrarTelaLogin();
+    return;
+  }
+  if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED')){
+    entrarComSessao(session);
+  } else if (!session && event === 'INITIAL_SESSION'){
+    mostrarTelaLogin();
+  }
+});
 </script>
 </body>
 </html>
