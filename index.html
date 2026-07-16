@@ -492,6 +492,9 @@ async function carregarEstado(){
     if (error) throw error;
     if (data && data.data) {
       state = Object.assign(defaultState(), data.data);
+    } else if (backupLocalAntigo()) {
+      // Há dados antigos deste navegador aguardando importação — não semear exemplo ainda.
+      state = defaultState();
     } else {
       state = seedExample(defaultState());
       await saveState();
