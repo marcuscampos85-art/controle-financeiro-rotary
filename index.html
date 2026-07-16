@@ -364,8 +364,12 @@
   <section class="tab" id="tab-dre">
     <div class="card">
       <h2>DRE — Demonstração do Resultado</h2>
-      <div class="desc">Regime de caixa: cada valor entra no mês em que o dinheiro efetivamente entrou ou saiu.</div>
-      <div class="field" style="max-width:160px;"><label>Ano</label><input id="dreAno" type="number" onchange="renderDRE()"></div>
+      <div class="desc">Regime de caixa: cada valor entra no mês em que o dinheiro efetivamente entrou ou saiu. Organizado pelo ano rotário (julho a junho).</div>
+      <div class="field" style="max-width:260px;">
+        <label>Ano rotário (ano de início)</label>
+        <input id="dreAno" type="number" onchange="renderDRE()">
+        <div class="muted" id="dreAnoPeriodo" style="margin-top:4px;"></div>
+      </div>
       <div class="table-wrap"><table id="tabelaDRE"></table></div>
     </div>
   </section>
@@ -965,34 +969,38 @@ function renderDespesas(){
 }
 
 /* ==================== DRE ==================== */
-function dreData(ano){
+function dreData(anoInicio){
+  const anoFim = anoInicio + 1;
   const receitaMensalidade = [], outrasReceitas = [], totalReceitas = [], totalDespesas = [], resultado = [], saldoFimMes = [];
   const despesasPorCategoria = state.categoriasDespesa.map(() => []);
-  for (let m=1; m<=12; m++){
-    const rm = totalReceitaCategoriaMes('Mensalidade Associado', m, ano);
-    const or_ = totalReceitaCategoriaMes('Outras Receitas', m, ano);
+  MESES_ROTARIOS.forEach(m => {
+    const anoRef = m >= 7 ? anoInicio : anoFim;
+    const rm = totalReceitaCategoriaMes('Mensalidade Associado', m, anoRef);
+    const or_ = totalReceitaCategoriaMes('Outras Receitas', m, anoRef);
     receitaMensalidade.push(rm);
     outrasReceitas.push(or_);
     totalReceitas.push(rm + or_);
     let despMes = 0;
     state.categoriasDespesa.forEach((cat, i) => {
-      const v = totalDespesaCategoriaMes(cat, m, ano);
+      const v = totalDespesaCategoriaMes(cat, m, anoRef);
       despesasPorCategoria[i].push(v);
       despMes += v;
     });
     totalDespesas.push(despMes);
     resultado.push((rm+or_) - despMes);
-    saldoFimMes.push(saldoAteData(fimDoMes(ano, m)));
-  }
+    saldoFimMes.push(saldoAteData(fimDoMes(anoRef, m)));
+  });
   return { receitaMensalidade, outrasReceitas, totalReceitas, despesasPorCategoria, totalDespesas, resultado, saldoFimMes };
 }
 function somaArr(a){ return a.reduce((s,v)=>s+v,0); }
 function renderDRE(){
-  if (!document.getElementById('dreAno').value) document.getElementById('dreAno').value = new Date().getFullYear();
-  const ano = Number(document.getElementById('dreAno').value);
-  const d = dreData(ano);
+  if (!document.getElementById('dreAno').value) document.getElementById('dreAno').value = anoRotarioInicioAtual();
+  const anoInicio = Number(document.getElementById('dreAno').value);
+  const anoFim = anoInicio + 1;
+  document.getElementById('dreAnoPeriodo').textContent = 'Período: 01/07/' + anoInicio + ' a 30/06/' + anoFim;
+  const d = dreData(anoInicio);
   const t = document.getElementById('tabelaDRE');
-  let html = '<thead><tr><th>Linha</th>' + MESES.map(m=>`<th>${m}</th>`).join('') + '<th>Total ano</th></tr></thead><tbody>';
+  let html = '<thead><tr><th>Linha</th>' + MESES_ROTARIOS.map(m=>`<th>${MESES[m-1]}</th>`).join('') + '<th>Total ano</th></tr></thead><tbody>';
   const linha = (label, arr, bold) => `<tr${bold?' class="totais"':''}><td>${label}</td>${arr.map(v=>`<td>${v?fmtBRL(v):'—'}</td>`).join('')}<td>${fmtBRL(somaArr(arr))}</td></tr>`;
   html += linha('Receita de Mensalidades', d.receitaMensalidade);
   html += linha('Outras Receitas', d.outrasReceitas);
