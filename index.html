@@ -1461,6 +1461,33 @@ async function alterarSenhaAcesso(){
   if (error){ alert(traduzErroAuth(error)); return; }
   alert('Senha atualizada com sucesso.');
 }
+function backupLocalAntigo(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !((parsed.associados||[]).length || (parsed.diario||[]).length)) return null;
+    return parsed;
+  } catch(e){ return null; }
+}
+async function oferecerImportarBackupAntigo(){
+  const antigo = backupLocalAntigo();
+  if (!antigo) return;
+  const vazio = !(state.associados||[]).length && !(state.diario||[]).length;
+  if (!vazio) return;
+  const qtdA = (antigo.associados||[]).length, qtdD = (antigo.diario||[]).length;
+  const importar = confirm('Encontrei dados salvos neste navegador de antes da migração para a nuvem (' + qtdA + ' associado(s) e ' + qtdD + ' lançamento(s)). Deseja importar esses dados agora para a nuvem?');
+  if (!importar) return;
+  state = Object.assign(defaultState(), antigo);
+  recalcularSeq();
+  await saveState();
+  renderSelectCategoriasAssociado();
+  renderDiarioSelects();
+  renderAssociados();
+  renderDiario();
+  showTab('painel');
+  alert('Dados importados com sucesso para a nuvem.');
+}
 async function entrarComSessao(session){
   document.getElementById('headerEmail').textContent = session.user.email;
   await carregarEstado();
@@ -1470,6 +1497,7 @@ async function entrarComSessao(session){
   renderDiario();
   showTab('painel');
   document.getElementById('lockScreen').style.display = 'none';
+  await oferecerImportarBackupAntigo();
 }
 
 /* ==================== INIT ==================== */
