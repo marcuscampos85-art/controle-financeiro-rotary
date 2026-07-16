@@ -346,8 +346,12 @@
     </div>
     <div class="card">
       <h2>Despesas por categoria</h2>
-      <div class="desc">Somatório mensal das despesas lançadas no diário (pelo mês da data do lançamento).</div>
-      <div class="field" style="max-width:160px;"><label>Ano</label><input id="despAno" type="number" onchange="renderDespesas()"></div>
+      <div class="desc">Somatório mensal das despesas lançadas no diário (pelo mês da data do lançamento), organizado pelo ano rotário (julho a junho).</div>
+      <div class="field" style="max-width:260px;">
+        <label>Ano rotário (ano de início)</label>
+        <input id="despAno" type="number" onchange="renderDespesas()">
+        <div class="muted" id="despAnoPeriodo" style="margin-top:4px;"></div>
+      </div>
       <div class="table-wrap"><table id="tabelaDespesasResumo"></table></div>
     </div>
     <div class="card">
@@ -922,19 +926,22 @@ function renderDespesas(){
   const formaSel = document.getElementById('despForma');
   if (formaSel) formaSel.innerHTML = state.formasPagamento.map(f => `<option value="${f}">${f}</option>`).join('');
   if (!document.getElementById('despData').value) document.getElementById('despData').value = new Date().toISOString().slice(0,10);
-  if (!document.getElementById('despAno').value) document.getElementById('despAno').value = new Date().getFullYear();
-  const ano = Number(document.getElementById('despAno').value);
+  if (!document.getElementById('despAno').value) document.getElementById('despAno').value = anoRotarioInicioAtual();
+  const anoInicio = Number(document.getElementById('despAno').value);
+  const anoFim = anoInicio + 1;
+  document.getElementById('despAnoPeriodo').textContent = 'Período: 01/07/' + anoInicio + ' a 30/06/' + anoFim;
   const t1 = document.getElementById('tabelaDespesasResumo');
-  let html = '<thead><tr><th>Categoria</th>' + MESES.map(m=>`<th>${m}</th>`).join('') + '<th>Total ano</th></tr></thead><tbody>';
+  let html = '<thead><tr><th>Categoria</th>' + MESES_ROTARIOS.map(m=>`<th>${MESES[m-1]}</th>`).join('') + '<th>Total ano</th></tr></thead><tbody>';
   const totaisMes = new Array(12).fill(0);
   state.categoriasDespesa.forEach(cat => {
     let totalAno = 0;
     let cells = '';
-    for (let m=1;m<=12;m++){
-      const v = totalDespesaCategoriaMes(cat, m, ano);
-      totalAno += v; totaisMes[m-1] += v;
+    MESES_ROTARIOS.forEach((m, i) => {
+      const anoRef = m >= 7 ? anoInicio : anoFim;
+      const v = totalDespesaCategoriaMes(cat, m, anoRef);
+      totalAno += v; totaisMes[i] += v;
       cells += `<td>${v ? fmtBRL(v) : '—'}</td>`;
-    }
+    });
     html += `<tr><td>${cat}</td>${cells}<td><b>${fmtBRL(totalAno)}</b></td></tr>`;
   });
   html += `<tr class="totais"><td>Total</td>${totaisMes.map(v=>`<td>${fmtBRL(v)}</td>`).join('')}<td>${fmtBRL(totaisMes.reduce((s,v)=>s+v,0))}</td></tr>`;
@@ -942,9 +949,14 @@ function renderDespesas(){
   t1.innerHTML = html;
 
   const t2 = document.getElementById('tabelaDespesasDetalhe');
-  const despesas = diarioOrdenado().filter(e => tipoDe(e.categoria) === 'Despesa' && toLocalDate(e.data).getFullYear() === ano);
+  const despesas = diarioOrdenado().filter(e => {
+    if (tipoDe(e.categoria) !== 'Despesa') return false;
+    const d = toLocalDate(e.data);
+    const y = d.getFullYear(), mo = d.getMonth() + 1;
+    return mo >= 7 ? (y === anoInicio) : (y === anoFim);
+  });
   let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th></tr></thead><tbody>';
-  if (!despesas.length) html2 += '<tr><td colspan="6" class="muted">Nenhuma despesa lançada neste ano.</td></tr>';
+  if (!despesas.length) html2 += '<tr><td colspan="6" class="muted">Nenhuma despesa lançada neste período.</td></tr>';
   despesas.forEach(e => {
     html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td></tr>`;
   });
