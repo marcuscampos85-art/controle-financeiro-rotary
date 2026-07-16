@@ -316,7 +316,7 @@
     <div class="card">
       <h2>Controle de recebimentos por associado</h2>
       <div class="desc">
-        Mostra, mês a mês, quem pagou e quem está pendente ou atrasado, comparando o valor devido (cadastro) com o valor recebido (lançado no diário como "Mensalidade Associado").
+        Mostra, mês a mês, quem pagou e quem está pendente ou atrasado, comparando o valor devido (cadastro) com o valor recebido (lançado no diário como "Mensalidade Associado"). Use o campo "Saldo inicial" para registrar débitos de períodos anteriores ao uso do sistema; esse valor entra automaticamente no total devido e na situação do associado.
       </div>
       <div class="field" style="max-width:260px;">
         <label>Ano rotário (ano de início)</label>
@@ -591,9 +591,13 @@ function efetivamenteIsento(a){ return !!a.isento || a.categoria === 'Sócio Hon
 function updateAssociado(id, field, value){
   const a = getAssociado(id);
   if (!a) return;
-  a[field] = (field === 'valorMensalidade') ? Number(value)||0 : value;
+  a[field] = (field === 'valorMensalidade' || field === 'saldoInicial') ? Number(value)||0 : value;
   saveState();
   if (field === 'nome') renderDiarioSelects();
+}
+function atualizarSaldoInicial(id, value){
+  updateAssociado(id, 'saldoInicial', value);
+  renderRecebimentos();
 }
 function deleteAssociado(id){
   if (!confirm('Excluir este associado? Os lançamentos já feitos no diário não serão apagados.')) return;
@@ -855,12 +859,13 @@ function renderRecebimentos(){
   document.getElementById('recAnoPeriodo').textContent = 'Período: 01/07/' + anoInicio + ' a 30/06/' + anoFim;
   const ativos = state.associados.filter(a => a.status === 'Ativo');
   const t = document.getElementById('tabelaRecebimentos');
-  let html = '<thead><tr><th>Associado</th>' + MESES_ROTARIOS.map(m => `<th>${MESES[m-1]}</th>`).join('') + '<th>Total devido</th><th>Total recebido</th><th>Adimplência</th></tr></thead><tbody>';
-  if (!ativos.length) html += `<tr><td colspan="16" class="muted">Nenhum associado ativo cadastrado.</td></tr>`;
+  let html = '<thead><tr><th>Associado</th><th>Saldo inicial (R$)</th>' + MESES_ROTARIOS.map(m => `<th>${MESES[m-1]}</th>`).join('') + '<th>Total devido</th><th>Total recebido</th><th>Adimplência</th></tr></thead><tbody>';
+  if (!ativos.length) html += `<tr><td colspan="17" class="muted">Nenhum associado ativo cadastrado.</td></tr>`;
   const hoje = new Date().toISOString().slice(0,10);
   ativos.forEach(a => {
     const isento = efetivamenteIsento(a);
-    let totalDevido = 0, totalRecebido = 0, valorEmDebito = 0;
+    const saldoInicial = Number(a.saldoInicial) || 0;
+    let totalDevido = saldoInicial, totalRecebido = 0, valorEmDebito = saldoInicial;
     let cells = '';
     MESES_ROTARIOS.forEach(m => {
       const ano = m >= 7 ? anoInicio : anoFim;
@@ -877,12 +882,13 @@ function renderRecebimentos(){
       cells += `<td>${statusBadge(status)}</td>`;
     });
     const adimplencia = totalDevido > 0 ? Math.round((totalRecebido/totalDevido)*100) : 100;
-    const situacaoHtml = isento
-      ? '<div class="badge na" style="margin-top:4px;">Isento</div>'
-      : (valorEmDebito > 0
-          ? `<div class="badge atrasado" style="margin-top:4px;">Em débito: ${fmtBRL(valorEmDebito)}</div>`
+    const situacaoHtml = valorEmDebito > 0
+      ? `<div class="badge atrasado" style="margin-top:4px;">Em débito: ${fmtBRL(valorEmDebito)}</div>`
+      : (isento
+          ? '<div class="badge na" style="margin-top:4px;">Isento</div>'
           : '<div class="badge pago" style="margin-top:4px;">Em dia</div>');
-    html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div>${situacaoHtml}</td>${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
+    const saldoInicialCell = `<td><input type="number" step="0.01" value="${saldoInicial}" onchange="atualizarSaldoInicial('${a.id}', this.value)" style="width:100px;"></td>`;
+    html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div>${situacaoHtml}</td>${saldoInicialCell}${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
   });
   html += '</tbody>';
   t.innerHTML = html;
