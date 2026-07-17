@@ -376,6 +376,7 @@
     </div>
     <div class="card">
       <h2>Lançamentos de despesa (detalhado)</h2>
+      <div class="desc">Use a coluna Comprovante para anexar a foto ou PDF da nota/recibo de cada despesa. Fica guardado na nuvem, só quem tem login acessa.</div>
       <div class="table-wrap"><table id="tabelaDespesasDetalhe"></table></div>
     </div>
   </section>
@@ -824,6 +825,53 @@ function updateDiarioField(id, field, value){
   saveState();
   renderDiario();
 }
+async function anexarComprovante(id, file){
+  if (!file) return;
+  const e = state.diario.find(d => d.id === id);
+  if (!e) return;
+  if (file.size > 10*1024*1024){ alert('O arquivo deve ter no máximo 10MB.'); return; }
+  try {
+    const ext = (file.name.split('.').pop() || 'dat').toLowerCase();
+    const path = id + '-' + Date.now() + '.' + ext;
+    const { error } = await sbClient.storage.from('comprovantes').upload(path, file, { upsert: true });
+    if (error) throw error;
+    e.comprovantePath = path;
+    e.comprovanteNome = file.name;
+    await saveState();
+    renderDiario();
+    renderDespesas();
+  } catch(err){
+    console.error('Erro ao enviar comprovante', err);
+    alert('Não foi possível enviar o comprovante. Verifique sua conexão e tente novamente.');
+  }
+}
+async function verComprovante(path){
+  try {
+    const { data, error } = await sbClient.storage.from('comprovantes').createSignedUrl(path, 120);
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank');
+  } catch(err){
+    console.error('Erro ao abrir comprovante', err);
+    alert('Não foi possível abrir o comprovante.');
+  }
+}
+async function removerComprovante(id){
+  if (!confirm('Remover o comprovante deste lançamento?')) return;
+  const e = state.diario.find(d => d.id === id);
+  if (!e || !e.comprovantePath) return;
+  try { await sbClient.storage.from('comprovantes').remove([e.comprovantePath]); } catch(err){ console.error('Erro ao remover arquivo', err); }
+  delete e.comprovantePath;
+  delete e.comprovanteNome;
+  await saveState();
+  renderDiario();
+  renderDespesas();
+}
+function celulaComprovante(e){
+  if (e.comprovantePath){
+    return `<button class="btn small secondary" onclick="verComprovante('${e.comprovantePath}')" title="${e.comprovanteNome||''}">Ver</button> <button class="btn small danger" onclick="removerComprovante('${e.id}')">×</button>`;
+  }
+  return `<label class="btn small secondary" style="cursor:pointer;">Anexar<input type="file" accept="image/*,.pdf" style="display:none;" onchange="anexarComprovante('${e.id}', this.files[0])"></label>`;
+}
 function statusBadge(status){
   const cls = status === 'Pago' ? 'pago' : status === 'Atrasado' ? 'atrasado' : status === 'N/A' ? 'na' : 'pendente';
   return `<span class="badge ${cls}">${status}</span>`;
@@ -859,8 +907,8 @@ function renderDiario(){
   });
   document.getElementById('headerSaldo').textContent = 'Saldo atual: ' + fmtBRL(saldoAtual());
   const t = document.getElementById('tabelaDiario');
-  let html = '<thead><tr><th><input type="checkbox" id="chkTodosDiario" onchange="toggleTodosDiario(this.checked)"></th><th>Data</th><th>Histórico</th><th>Categoria</th><th>Associado</th><th>Mês/Ano ref.</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Forma</th><th>Status</th><th>Concil.</th><th></th></tr></thead><tbody>';
-  if (!rows.length) html += '<tr><td colspan="13" class="muted">Nenhum lançamento ainda.</td></tr>';
+  let html = '<thead><tr><th><input type="checkbox" id="chkTodosDiario" onchange="toggleTodosDiario(this.checked)"></th><th>Data</th><th>Histórico</th><th>Categoria</th><th>Associado</th><th>Mês/Ano ref.</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Forma</th><th>Status</th><th>Concil.</th><th>Comprovante</th><th></th></tr></thead><tbody>';
+  if (!rows.length) html += '<tr><td colspan="14" class="muted">Nenhum lançamento ainda.</td></tr>';
   rows.forEach(({e, saldo}) => {
     const assoc = e.associadoId ? (getAssociado(e.associadoId)?.nome || '—') : '—';
     const mesAno = e.mesRef ? (MESES[e.mesRef-1] + '/' + e.anoRef) : '—';
@@ -889,6 +937,7 @@ function renderDiario(){
           <option ${e.conciliado==='Sim'?'selected':''}>Sim</option>
         </select>
       </td>
+      <td>${celulaComprovante(e)}</td>
       <td><button class="btn small danger" onclick="deleteDiario('${e.id}')">Excluir</button></td>
     </tr>`;
   });
@@ -997,10 +1046,10 @@ function renderDespesas(){
     const y = d.getFullYear(), mo = d.getMonth() + 1;
     return mo >= 7 ? (y === anoInicio) : (y === anoFim);
   });
-  let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th></tr></thead><tbody>';
-  if (!despesas.length) html2 += '<tr><td colspan="6" class="muted">Nenhuma despesa lançada neste período.</td></tr>';
+  let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th><th>Comprovante</th></tr></thead><tbody>';
+  if (!despesas.length) html2 += '<tr><td colspan="7" class="muted">Nenhuma despesa lançada neste período.</td></tr>';
   despesas.forEach(e => {
-    html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td></tr>`;
+    html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td><td>${celulaComprovante(e)}</td></tr>`;
   });
   html2 += '</tbody>';
   t2.innerHTML = html2;
