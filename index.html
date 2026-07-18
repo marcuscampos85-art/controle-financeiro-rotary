@@ -820,6 +820,7 @@ function deleteDiario(id){
   diarioSelecionados.delete(id);
   saveState();
   renderDiario();
+  renderDespesas();
 }
 function updateDiarioField(id, field, value){
   const e = state.diario.find(d => d.id === id);
@@ -1049,10 +1050,10 @@ function renderDespesas(){
     const y = d.getFullYear(), mo = d.getMonth() + 1;
     return mo >= 7 ? (y === anoInicio) : (y === anoFim);
   });
-  let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th><th>Comprovante</th></tr></thead><tbody>';
-  if (!despesas.length) html2 += '<tr><td colspan="7" class="muted">Nenhuma despesa lançada neste período.</td></tr>';
+  let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th><th>Comprovante</th><th></th></tr></thead><tbody>';
+  if (!despesas.length) html2 += '<tr><td colspan="8" class="muted">Nenhuma despesa lançada neste período.</td></tr>';
   despesas.forEach(e => {
-    html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td><td>${celulaComprovante(e)}</td></tr>`;
+    html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td><td>${celulaComprovante(e)}</td><td><button class="btn small danger" onclick="deleteDiario('${e.id}')">Excluir</button></td></tr>`;
   });
   html2 += '</tbody>';
   t2.innerHTML = html2;
