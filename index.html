@@ -1247,16 +1247,24 @@ function renderPainel(){
   const despesaMes = state.categoriasDespesa.reduce((s,cat)=> s + totalDespesaCategoriaMes(cat, mesAtual, anoAtual), 0);
   const ativos = state.associados.filter(a=>a.status==='Ativo');
   let pendentesCount = 0;
+  let valorPendente = 0;
   ativos.forEach(a => {
-    const devido = Number(a.valorMensalidade)||0;
+    const isentoAssoc = efetivamenteIsento(a) || mesIsento(a, mesAtual, anoAtual);
+    const devido = isentoAssoc ? 0 : (Number(a.valorMensalidade)||0);
     const recebido = valorRecebidoAssociado(a.id, mesAtual, anoAtual);
-    if (devido > 0 && recebido < devido) pendentesCount++;
+    if (devido > 0 && recebido < devido){
+      pendentesCount++;
+      valorPendente += (devido - recebido);
+    }
   });
+  const valorPendenteHtml = pendentesCount > 0
+    ? `<div style="font-size:13px;font-weight:600;color:var(--vermelho);margin-top:2px;">${fmtBRL(valorPendente)} em aberto</div>`
+    : '';
   const kpis = [
     { label: 'Saldo atual', valor: fmtBRL(saldoAtual()), cls: '' },
     { label: 'Recebido no mês', valor: fmtBRL(recebidoMes), cls: 'pos' },
     { label: 'Despesas no mês', valor: fmtBRL(despesaMes), cls: 'neg' },
-    { label: 'Associados pendentes/atrasados no mês', valor: pendentesCount + ' de ' + ativos.length, cls: pendentesCount>0?'neg':'' }
+    { label: 'Associados pendentes/atrasados no mês', valor: pendentesCount + ' de ' + ativos.length + valorPendenteHtml, cls: pendentesCount>0?'neg':'' }
   ];
   document.getElementById('kpis').innerHTML = kpis.map(k => `<div class="card kpi"><div class="v ${k.cls}">${k.valor}</div><div class="l">${k.label}</div></div>`).join('');
 
