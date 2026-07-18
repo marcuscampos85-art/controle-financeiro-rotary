@@ -413,7 +413,7 @@
     </div>
     <div class="card" id="stagingCard" style="display:none;">
       <h2>Transações para classificar</h2>
-      <div class="desc">Clique em "Conciliar com o Diário" pra eu comparar cada transação com o que já foi lançado: o que já está no diário eu marco como conciliado, e pro que for novo eu já deixo uma sugestão de categoria (e associado, quando for mensalidade). Depois é só conferir e clicar em "Adicionar ao diário".</div>
+      <div class="desc">Clique em "Conciliar com o Diário" pra eu comparar cada transação com o que já foi lançado: o que já está no diário eu marco como conciliado, e pro que for novo eu já deixo uma sugestão de categoria (e associado, quando for mensalidade). Depois é só conferir e clicar em "Adicionar ao diário". Se um único depósito for o pagamento de mais de um associado, segure Ctrl (ou Cmd no Mac) e clique em todos os nomes no campo Associado — eu divido o valor igualmente entre eles e crio um lançamento pra cada um.</div>
       <button class="btn secondary" onclick="conciliarStaging()">Conciliar com o Diário</button>
       <div class="table-wrap" style="margin-top:12px;"><table id="tabelaStaging"></table></div>
     </div>
@@ -544,6 +544,9 @@ function tipoDe(categoria){
   return (categoria === 'Mensalidade Associado' || categoria === 'Outras Receitas') ? 'Receita' : 'Despesa';
 }
 function getAssociado(id){ return state.associados.find(a => a.id === id); }
+function associadosOrdenados(lista){
+  return [...(lista || state.associados)].sort((a,b) => (a.nome||'').localeCompare(b.nome||'', 'pt-BR', { sensitivity: 'base' }));
+}
 function categoriasDiario(){ return ['Mensalidade Associado', 'Outras Receitas', ...state.categoriasDespesa]; }
 
 function entradaOf(e){ return tipoDe(e.categoria) === 'Receita' ? (Number(e.valor)||0) : 0; }
@@ -578,7 +581,7 @@ function totalReceitaCategoriaMes(categoria, mes, ano){
 /* ==================== NAVEGAÇÃO ==================== */
 const TABS = [
   ['painel', 'Painel'],
-  ['associados', 'Associados'],
+  ['associados', 'Dados Gerais'],
   ['diario', 'Diário'],
   ['recebimentos', 'Recebimentos'],
   ['despesas', 'Despesas'],
@@ -714,7 +717,7 @@ function renderAssociados(){
   const catOptions = state.categoriasAssociado.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
   let html = '<thead><tr><th>Nome</th><th>Categoria</th><th>Mensalidade</th><th>Isento</th><th>Status</th><th>Ingresso</th><th>Observação</th><th></th></tr></thead><tbody>';
   if (!state.associados.length) html += '<tr><td colspan="8" class="muted">Nenhum associado cadastrado ainda.</td></tr>';
-  state.associados.forEach(a => {
+  associadosOrdenados().forEach(a => {
     html += `<tr>
       <td><input value="${a.nome||''}" onchange="updateAssociado('${a.id}','nome',this.value)" style="min-width:140px;"></td>
       <td><select onchange="updateAssociado('${a.id}','categoria',this.value)">${state.categoriasAssociado.map(c=>`<option value="${c.nome}" ${c.nome===a.categoria?'selected':''}>${c.nome}</option>`).join('')}</select></td>
@@ -779,7 +782,7 @@ function removeFormaPagamento(i){ state.formasPagamento.splice(i,1); saveState()
 function renderDiarioSelects(){
   document.getElementById('dCategoria').innerHTML = categoriasDiario().map(c => `<option value="${c}">${c}</option>`).join('');
   document.getElementById('dForma').innerHTML = state.formasPagamento.map(f => `<option value="${f}">${f}</option>`).join('');
-  document.getElementById('dAssociado').innerHTML = '<option value="">—</option>' + state.associados.map(a => `<option value="${a.id}">${a.nome}</option>`).join('');
+  document.getElementById('dAssociado').innerHTML = '<option value="">—</option>' + associadosOrdenados(state.associados).map(a => `<option value="${a.id}">${a.nome}</option>`).join('');
   document.getElementById('dMes').innerHTML = '<option value="">—</option>' + MESES_LONGOS.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
   if (!document.getElementById('dAno').value) document.getElementById('dAno').value = new Date().getFullYear();
   document.getElementById('saldoInicialInput').value = state.saldoInicial;
@@ -952,7 +955,7 @@ function renderRecebimentos(){
   const anoInicio = Number(document.getElementById('recAno').value);
   const anoFim = anoInicio + 1;
   document.getElementById('recAnoPeriodo').textContent = 'Período: 01/07/' + anoInicio + ' a 30/06/' + anoFim;
-  const ativos = state.associados.filter(a => a.status === 'Ativo');
+  const ativos = associadosOrdenados(state.associados.filter(a => a.status === 'Ativo'));
   const t = document.getElementById('tabelaRecebimentos');
   let html = '<thead><tr><th>Associado</th><th>Saldo inicial (R$)</th>' + MESES_ROTARIOS.map(m => `<th>${MESES[m-1]}</th>`).join('') + '<th>Total devido</th><th>Total recebido</th><th>Adimplência</th></tr></thead><tbody>';
   if (!ativos.length) html += `<tr><td colspan="17" class="muted">Nenhum associado ativo cadastrado.</td></tr>`;
@@ -1290,7 +1293,7 @@ function renderStaging(){
       <td>${t2.historico}</td>
       <td style="color:${t2.valor<0?'var(--vermelho)':'var(--verde)'}">${fmtBRL(t2.valor)}</td>
       <td><select id="stgCat_${t2.id}">${categoriasDiario().map(c=>`<option value="${c}" ${c===catDefault?'selected':''}>${c}</option>`).join('')}</select></td>
-      <td><select id="stgAssoc_${t2.id}"><option value="">—</option>${state.associados.map(a=>`<option value="${a.id}" ${a.id===assocDefault?'selected':''}>${a.nome}</option>`).join('')}</select></td>
+      <td><select id="stgAssoc_${t2.id}" multiple size="3" style="min-width:150px;">${associadosOrdenados(state.associados).map(a=>`<option value="${a.id}" ${a.id===assocDefault?'selected':''}>${a.nome}</option>`).join('')}</select><div class="muted" style="white-space:normal;font-size:10.5px;">Ctrl/Cmd+clique p/ vincular vários</div></td>
       <td><select id="stgMes_${t2.id}"><option value="">—</option>${MESES_LONGOS.map((m,i)=>`<option value="${i+1}" ${(i+1)===mesDefault?'selected':''}>${m}</option>`).join('')}</select></td>
       <td><input id="stgAno_${t2.id}" type="number" value="${anoDefault}" style="width:70px;"></td>
       <td>${acaoHtml}</td>
@@ -1303,16 +1306,39 @@ function confirmarStaging(id){
   const t = stagingTransactions.find(x => x.id === id);
   if (!t) return;
   const categoria = document.getElementById('stgCat_'+id).value;
-  state.diario.push({
-    id: uid('diario'), seq: seq++,
-    data: t.data, categoria, valor: Math.abs(t.valor),
-    associadoId: document.getElementById('stgAssoc_'+id).value || '',
-    mesRef: document.getElementById('stgMes_'+id).value || '',
-    anoRef: document.getElementById('stgAno_'+id).value || '',
-    formaPagamento: 'Transferência Bancária',
-    status: 'Pago', conciliado: 'Sim',
-    historico: t.historico
-  });
+  const associadoIds = Array.from(document.getElementById('stgAssoc_'+id).selectedOptions).map(o => o.value).filter(Boolean);
+  const mesRef = document.getElementById('stgMes_'+id).value || '';
+  const anoRef = document.getElementById('stgAno_'+id).value || '';
+  const valorTotal = Math.abs(t.valor);
+
+  if (associadoIds.length > 1){
+    // Um único depósito cobrindo vários associados: divide o valor entre eles e lança um registro pra cada um.
+    const n = associadoIds.length;
+    const base = Math.floor((valorTotal / n) * 100) / 100;
+    let acumulado = 0;
+    associadoIds.forEach((associadoId, i) => {
+      const valor = (i === n - 1) ? Math.round((valorTotal - acumulado) * 100) / 100 : base;
+      acumulado += valor;
+      state.diario.push({
+        id: uid('diario'), seq: seq++,
+        data: t.data, categoria, valor,
+        associadoId, mesRef, anoRef,
+        formaPagamento: 'Transferência Bancária',
+        status: 'Pago', conciliado: 'Sim',
+        historico: t.historico + ' (dividido entre ' + n + ' associados)'
+      });
+    });
+  } else {
+    state.diario.push({
+      id: uid('diario'), seq: seq++,
+      data: t.data, categoria, valor: valorTotal,
+      associadoId: associadoIds[0] || '',
+      mesRef, anoRef,
+      formaPagamento: 'Transferência Bancária',
+      status: 'Pago', conciliado: 'Sim',
+      historico: t.historico
+    });
+  }
   stagingTransactions = stagingTransactions.filter(x => x.id !== id);
   saveState();
   renderStaging();
@@ -1342,7 +1368,7 @@ function exportarCSV(qual){
     diarioOrdenado().forEach(e => rows.push([e.data, e.historico, e.categoria, e.associadoId?getAssociado(e.associadoId)?.nome:'', e.mesRef, e.anoRef, e.valor, tipoDe(e.categoria), e.formaPagamento, e.status, e.conciliado]));
   } else {
     rows.push(['Nome','Categoria','Valor Mensalidade','Status','Data Ingresso','Observação']);
-    state.associados.forEach(a => rows.push([a.nome, a.categoria, a.valorMensalidade, a.status, a.dataIngresso, a.obs]));
+    associadosOrdenados().forEach(a => rows.push([a.nome, a.categoria, a.valorMensalidade, a.status, a.dataIngresso, a.obs]));
   }
   const csv = rows.map(r => r.map(csvEscape).join(';')).join('\r\n');
   download(qual + '_' + new Date().toISOString().slice(0,10) + '.csv', '﻿' + csv, 'text/csv;charset=utf-8');
