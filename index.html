@@ -881,6 +881,69 @@ function statusBadge(status){
   return `<span class="badge ${cls}">${status}</span>`;
 }
 let diarioSelecionados = new Set();
+let lancamentosEditando = new Set();
+function iniciarEdicaoLancamento(id){
+  lancamentosEditando.add(id);
+  renderDiario();
+  renderDespesas();
+}
+function cancelarEdicaoLancamento(id){
+  lancamentosEditando.delete(id);
+  renderDiario();
+  renderDespesas();
+}
+function salvarEdicaoDiario(id){
+  const e = state.diario.find(d => d.id === id);
+  if (!e) return;
+  const data = document.getElementById('ed_data_'+id).value;
+  const valor = Number(document.getElementById('ed_valor_'+id).value);
+  if (!data){ alert('Informe a data.'); return; }
+  if (!valor || valor <= 0){ alert('Informe um valor maior que zero.'); return; }
+  e.data = data;
+  e.categoria = document.getElementById('ed_categoria_'+id).value;
+  e.valor = valor;
+  e.associadoId = document.getElementById('ed_associado_'+id).value || '';
+  e.mesRef = document.getElementById('ed_mes_'+id).value || '';
+  e.anoRef = document.getElementById('ed_ano_'+id).value || '';
+  e.formaPagamento = document.getElementById('ed_forma_'+id).value;
+  e.historico = document.getElementById('ed_historico_'+id).value.trim();
+  lancamentosEditando.delete(id);
+  saveState();
+  renderDiario();
+  renderDespesas();
+  renderRecebimentos();
+  renderPainel();
+}
+function salvarEdicaoDespesa(id){
+  const e = state.diario.find(d => d.id === id);
+  if (!e) return;
+  const data = document.getElementById('edp_data_'+id).value;
+  const valor = Number(document.getElementById('edp_valor_'+id).value);
+  if (!data){ alert('Informe a data.'); return; }
+  if (!valor || valor <= 0){ alert('Informe um valor maior que zero.'); return; }
+  e.data = data;
+  e.categoria = document.getElementById('edp_categoria_'+id).value;
+  e.valor = valor;
+  e.formaPagamento = document.getElementById('edp_forma_'+id).value;
+  e.status = document.getElementById('edp_status_'+id).value;
+  e.historico = document.getElementById('edp_historico_'+id).value.trim();
+  lancamentosEditando.delete(id);
+  saveState();
+  renderDiario();
+  renderDespesas();
+  renderRecebimentos();
+  renderPainel();
+}
+function editarRecebimento(associadoId, mes, ano){
+  const e = state.diario.find(x => x.categoria === 'Mensalidade Associado' && x.associadoId === associadoId && Number(x.mesRef) === mes && Number(x.anoRef) === ano);
+  if (!e){ alert('Não encontrei nenhum lançamento de mensalidade lançado para este associado neste mês.'); return; }
+  lancamentosEditando.add(e.id);
+  showTab('diario');
+  setTimeout(() => {
+    const row = document.getElementById('linhaDiario_' + e.id);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 60);
+}
 function toggleSelecaoDiario(id, marcado){
   if (marcado) diarioSelecionados.add(id); else diarioSelecionados.delete(id);
   atualizarInfoSelecaoDiario();
@@ -901,6 +964,25 @@ function conciliarSelecionados(marcarComo){
   renderDiario();
   alert((marcarComo ? 'Conciliei ' : 'Removi a conciliação de ') + total + ' lançamento(s).');
 }
+function linhaDiarioEdicao(e, saldo){
+  return `<tr id="linhaDiario_${e.id}" style="background:#eaf1fd;">
+    <td></td>
+    <td><input type="date" id="ed_data_${e.id}" value="${e.data}" style="min-width:130px;"></td>
+    <td><input id="ed_historico_${e.id}" value="${(e.historico||'').replace(/"/g,'&quot;')}" style="min-width:150px;"></td>
+    <td><select id="ed_categoria_${e.id}">${categoriasDiario().map(c=>`<option value="${c}" ${c===e.categoria?'selected':''}>${c}</option>`).join('')}</select></td>
+    <td><select id="ed_associado_${e.id}"><option value="">—</option>${associadosOrdenados(state.associados).map(a=>`<option value="${a.id}" ${a.id===e.associadoId?'selected':''}>${a.nome}</option>`).join('')}</select></td>
+    <td style="display:flex;gap:2px;">
+      <select id="ed_mes_${e.id}"><option value="">—</option>${MESES_LONGOS.map((m,i)=>`<option value="${i+1}" ${(i+1)===Number(e.mesRef)?'selected':''}>${m}</option>`).join('')}</select>
+      <input id="ed_ano_${e.id}" type="number" value="${e.anoRef||''}" style="width:70px;">
+    </td>
+    <td colspan="2"><input id="ed_valor_${e.id}" type="number" step="0.01" min="0" value="${e.valor}" style="width:100px;"></td>
+    <td><b>${fmtBRL(saldo)}</b></td>
+    <td><select id="ed_forma_${e.id}">${state.formasPagamento.map(f=>`<option value="${f}" ${f===e.formaPagamento?'selected':''}>${f}</option>`).join('')}</select></td>
+    <td colspan="2" class="muted">Status/Concil. ficam disponíveis após salvar.</td>
+    <td>${celulaComprovante(e)}</td>
+    <td class="row-actions"><button class="btn small" onclick="salvarEdicaoDiario('${e.id}')">Salvar</button><button class="btn small secondary" onclick="cancelarEdicaoLancamento('${e.id}')">Cancelar</button></td>
+  </tr>`;
+}
 function renderDiario(){
   renderDiarioSelects();
   const sorted = diarioOrdenado();
@@ -914,10 +996,14 @@ function renderDiario(){
   let html = '<thead><tr><th><input type="checkbox" id="chkTodosDiario" onchange="toggleTodosDiario(this.checked)"></th><th>Data</th><th>Histórico</th><th>Categoria</th><th>Associado</th><th>Mês/Ano ref.</th><th>Entrada</th><th>Saída</th><th>Saldo</th><th>Forma</th><th>Status</th><th>Concil.</th><th>Comprovante</th><th></th></tr></thead><tbody>';
   if (!rows.length) html += '<tr><td colspan="14" class="muted">Nenhum lançamento ainda.</td></tr>';
   rows.forEach(({e, saldo}) => {
+    if (lancamentosEditando.has(e.id)){
+      html += linhaDiarioEdicao(e, saldo);
+      return;
+    }
     const assoc = e.associadoId ? (getAssociado(e.associadoId)?.nome || '—') : '—';
     const mesAno = e.mesRef ? (MESES[e.mesRef-1] + '/' + e.anoRef) : '—';
     const ent = entradaOf(e), sai = saidaOf(e);
-    html += `<tr>
+    html += `<tr id="linhaDiario_${e.id}">
       <td><input type="checkbox" class="chkDiarioRow" ${diarioSelecionados.has(e.id)?'checked':''} onchange="toggleSelecaoDiario('${e.id}', this.checked)"></td>
       <td>${e.data}</td>
       <td>${e.historico || '—'}</td>
@@ -942,7 +1028,7 @@ function renderDiario(){
         </select>
       </td>
       <td>${celulaComprovante(e)}</td>
-      <td><button class="btn small danger" onclick="deleteDiario('${e.id}')">Excluir</button></td>
+      <td class="row-actions"><button class="btn small secondary" onclick="iniciarEdicaoLancamento('${e.id}')">Editar</button><button class="btn small danger" onclick="deleteDiario('${e.id}')">Excluir</button></td>
     </tr>`;
   });
   html += '</tbody>';
@@ -978,7 +1064,9 @@ function renderRecebimentos(){
       else if (hoje > fimDoMes(ano, m)) status = 'Atrasado';
       else status = 'Pendente';
       if (status === 'Atrasado') valorEmDebito += (devido - recebido);
-      cells += `<td>${statusBadge(status)}</td>`;
+      const temLancamento = state.diario.some(x => x.categoria === 'Mensalidade Associado' && x.associadoId === a.id && Number(x.mesRef) === m && Number(x.anoRef) === ano);
+      const editBtn = temLancamento ? `<button class="btn small secondary" style="padding:1px 5px;font-size:10px;margin-left:3px;" title="Editar este lançamento" onclick="editarRecebimento('${a.id}', ${m}, ${ano})">✎</button>` : '';
+      cells += `<td>${statusBadge(status)}${editBtn}</td>`;
     });
     const adimplencia = totalDevido > 0 ? Math.round((totalRecebido/totalDevido)*100) : 100;
     const situacaoHtml = valorEmDebito > 0
@@ -1053,7 +1141,20 @@ function renderDespesas(){
   let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th><th>Comprovante</th><th></th></tr></thead><tbody>';
   if (!despesas.length) html2 += '<tr><td colspan="8" class="muted">Nenhuma despesa lançada neste período.</td></tr>';
   despesas.forEach(e => {
-    html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td><td>${celulaComprovante(e)}</td><td><button class="btn small danger" onclick="deleteDiario('${e.id}')">Excluir</button></td></tr>`;
+    if (lancamentosEditando.has(e.id)){
+      html2 += `<tr style="background:#eaf1fd;">
+        <td><input type="date" id="edp_data_${e.id}" value="${e.data}" style="min-width:130px;"></td>
+        <td><select id="edp_categoria_${e.id}">${state.categoriasDespesa.map(c=>`<option value="${c}" ${c===e.categoria?'selected':''}>${c}</option>`).join('')}</select></td>
+        <td><input id="edp_historico_${e.id}" value="${(e.historico||'').replace(/"/g,'&quot;')}" style="min-width:150px;"></td>
+        <td><input id="edp_valor_${e.id}" type="number" step="0.01" min="0" value="${e.valor}" style="width:100px;"></td>
+        <td><select id="edp_forma_${e.id}">${state.formasPagamento.map(f=>`<option value="${f}" ${f===e.formaPagamento?'selected':''}>${f}</option>`).join('')}</select></td>
+        <td><select id="edp_status_${e.id}"><option ${e.status==='Pago'?'selected':''}>Pago</option><option ${e.status==='Pendente'?'selected':''}>Pendente</option><option ${e.status==='Atrasado'?'selected':''}>Atrasado</option></select></td>
+        <td>${celulaComprovante(e)}</td>
+        <td class="row-actions"><button class="btn small" onclick="salvarEdicaoDespesa('${e.id}')">Salvar</button><button class="btn small secondary" onclick="cancelarEdicaoLancamento('${e.id}')">Cancelar</button></td>
+      </tr>`;
+      return;
+    }
+    html2 += `<tr><td>${e.data}</td><td>${e.categoria}</td><td>${e.historico||'—'}</td><td>${fmtBRL(e.valor)}</td><td>${e.formaPagamento||''}</td><td>${statusBadge(e.status)}</td><td>${celulaComprovante(e)}</td><td class="row-actions"><button class="btn small secondary" onclick="iniciarEdicaoLancamento('${e.id}')">Editar</button><button class="btn small danger" onclick="deleteDiario('${e.id}')">Excluir</button></td></tr>`;
   });
   html2 += '</tbody>';
   t2.innerHTML = html2;
