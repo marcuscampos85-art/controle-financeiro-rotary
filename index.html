@@ -376,7 +376,7 @@
     </div>
     <div class="card">
       <h2>Lançamentos de despesa (detalhado)</h2>
-      <div class="desc">Use a coluna Comprovante para anexar a foto ou PDF da nota/recibo de cada despesa. Fica guardado na nuvem, só quem tem login acessa.</div>
+      <div class="desc">Use a coluna Comprovante para anexar a foto ou PDF da nota/recibo de cada despesa — dá pra anexar mais de um arquivo no mesmo lançamento. Fica guardado na nuvem, só quem tem login acessa.</div>
       <div class="table-wrap"><table id="tabelaDespesasDetalhe"></table></div>
     </div>
   </section>
@@ -842,25 +842,35 @@ function updateDiarioField(id, field, value){
   saveState();
   renderDiario();
 }
-async function anexarComprovante(id, file){
-  if (!file) return;
+function comprovantesDe(e){
+  const lista = Array.isArray(e.comprovantes) ? e.comprovantes.slice() : [];
+  if (e.comprovantePath && !lista.some(c => c.path === e.comprovantePath)){
+    lista.unshift({ path: e.comprovantePath, nome: e.comprovanteNome || '' });
+  }
+  return lista;
+}
+async function anexarComprovante(id, files){
+  if (!files || !files.length) return;
   const e = state.diario.find(d => d.id === id);
   if (!e) return;
-  if (file.size > 10*1024*1024){ alert('O arquivo deve ter no máximo 10MB.'); return; }
-  try {
-    const ext = (file.name.split('.').pop() || 'dat').toLowerCase();
-    const path = id + '-' + Date.now() + '.' + ext;
-    const { error } = await sbClient.storage.from('comprovantes').upload(path, file, { upsert: true });
-    if (error) throw error;
-    e.comprovantePath = path;
-    e.comprovanteNome = file.name;
-    await saveState();
-    renderDiario();
-    renderDespesas();
-  } catch(err){
-    console.error('Erro ao enviar comprovante', err);
-    alert('Não foi possível enviar o comprovante. Verifique sua conexão e tente novamente.');
+  const arquivos = Array.from(files);
+  for (const file of arquivos){
+    if (file.size > 10*1024*1024){ alert('O arquivo "' + file.name + '" deve ter no máximo 10MB. Ele não foi enviado.'); continue; }
+    try {
+      const ext = (file.name.split('.').pop() || 'dat').toLowerCase();
+      const path = id + '-' + Date.now() + '-' + Math.random().toString(36).slice(2,7) + '.' + ext;
+      const { error } = await sbClient.storage.from('comprovantes').upload(path, file, { upsert: true });
+      if (error) throw error;
+      if (!e.comprovantes) e.comprovantes = [];
+      e.comprovantes.push({ path, nome: file.name });
+    } catch(err){
+      console.error('Erro ao enviar comprovante', err);
+      alert('Não foi possível enviar o arquivo "' + file.name + '". Verifique sua conexão e tente novamente.');
+    }
   }
+  await saveState();
+  renderDiario();
+  renderDespesas();
 }
 async function verComprovante(path){
   try {
@@ -872,22 +882,21 @@ async function verComprovante(path){
     alert('Não foi possível abrir o comprovante.');
   }
 }
-async function removerComprovante(id){
-  if (!confirm('Remover o comprovante deste lançamento?')) return;
+async function removerComprovante(id, path){
+  if (!confirm('Remover este comprovante?')) return;
   const e = state.diario.find(d => d.id === id);
-  if (!e || !e.comprovantePath) return;
-  try { await sbClient.storage.from('comprovantes').remove([e.comprovantePath]); } catch(err){ console.error('Erro ao remover arquivo', err); }
-  delete e.comprovantePath;
-  delete e.comprovanteNome;
+  if (!e) return;
+  try { await sbClient.storage.from('comprovantes').remove([path]); } catch(err){ console.error('Erro ao remover arquivo', err); }
+  if (Array.isArray(e.comprovantes)) e.comprovantes = e.comprovantes.filter(c => c.path !== path);
+  if (e.comprovantePath === path){ delete e.comprovantePath; delete e.comprovanteNome; }
   await saveState();
   renderDiario();
   renderDespesas();
 }
 function celulaComprovante(e){
-  if (e.comprovantePath){
-    return `<button class="btn small secondary" onclick="verComprovante('${e.comprovantePath}')" title="${e.comprovanteNome||''}">Ver</button> <button class="btn small danger" onclick="removerComprovante('${e.id}')">×</button>`;
-  }
-  return `<label class="btn small secondary" style="cursor:pointer;">Anexar<input type="file" accept="image/*,.pdf" style="display:none;" onchange="anexarComprovante('${e.id}', this.files[0])"></label>`;
+  const lista = comprovantesDe(e);
+  const itens = lista.map(c => `<div style="white-space:nowrap;margin-bottom:2px;"><button class="btn small secondary" onclick="verComprovante('${c.path}')" title="${(c.nome||'').replace(/"/g,'&quot;')}">Ver${lista.length>1 ? ' '+(lista.indexOf(c)+1) : ''}</button> <button class="btn small danger" onclick="removerComprovante('${e.id}','${c.path}')">×</button></div>`).join('');
+  return `${itens}<label class="btn small secondary" style="cursor:pointer;">${lista.length ? '+ Anexar' : 'Anexar'}<input type="file" accept="image/*,.pdf" multiple style="display:none;" onchange="anexarComprovante('${e.id}', this.files)"></label>`;
 }
 function statusBadge(status){
   const cls = status === 'Pago' ? 'pago' : status === 'Atrasado' ? 'atrasado' : (status === 'N/A' || status === 'Isento') ? 'na' : 'pendente';
