@@ -336,7 +336,7 @@
     <div class="card">
       <h2>Controle de recebimentos por associado</h2>
       <div class="desc">
-        Mostra, mês a mês, quem pagou e quem está pendente ou atrasado, comparando o valor devido (cadastro) com o valor recebido (lançado no diário como "Mensalidade Associado"). Use o campo "Saldo inicial" para registrar débitos de períodos anteriores ao uso do sistema; esse valor entra automaticamente no total devido e na situação do associado.
+        Mostra, mês a mês, quem pagou e quem está pendente ou atrasado, comparando o valor devido (cadastro) com o valor recebido (lançado no diário como "Mensalidade Associado"). Use o campo "Saldo inicial" para registrar débitos de períodos anteriores ao uso do sistema; esse valor entra automaticamente no total devido e na situação do associado. Clique em "Isentar" num mês específico pra zerar o valor devido daquele mês só pra esse associado (ex: mês de licença); "Reativar" desfaz.
       </div>
       <div class="field" style="max-width:260px;">
         <label>Ano rotário (ano de início)</label>
@@ -638,6 +638,19 @@ function addAssociado(){
   renderDiarioSelects();
 }
 function efetivamenteIsento(a){ return !!a.isento || a.categoria === 'Sócio Honorário'; }
+function mesIsento(a, mes, ano){ return (a.mesesIsentos || []).includes(mes + '-' + ano); }
+function toggleIsencaoMes(associadoId, mes, ano){
+  const a = getAssociado(associadoId);
+  if (!a) return;
+  if (!a.mesesIsentos) a.mesesIsentos = [];
+  const chave = mes + '-' + ano;
+  const idx = a.mesesIsentos.indexOf(chave);
+  if (idx >= 0) a.mesesIsentos.splice(idx, 1);
+  else a.mesesIsentos.push(chave);
+  saveState();
+  renderRecebimentos();
+  renderPainel();
+}
 function updateAssociado(id, field, value){
   const a = getAssociado(id);
   if (!a) return;
@@ -877,7 +890,7 @@ function celulaComprovante(e){
   return `<label class="btn small secondary" style="cursor:pointer;">Anexar<input type="file" accept="image/*,.pdf" style="display:none;" onchange="anexarComprovante('${e.id}', this.files[0])"></label>`;
 }
 function statusBadge(status){
-  const cls = status === 'Pago' ? 'pago' : status === 'Atrasado' ? 'atrasado' : status === 'N/A' ? 'na' : 'pendente';
+  const cls = status === 'Pago' ? 'pago' : status === 'Atrasado' ? 'atrasado' : (status === 'N/A' || status === 'Isento') ? 'na' : 'pendente';
   return `<span class="badge ${cls}">${status}</span>`;
 }
 let diarioSelecionados = new Set();
@@ -1054,19 +1067,23 @@ function renderRecebimentos(){
     let cells = '';
     MESES_ROTARIOS.forEach(m => {
       const ano = m >= 7 ? anoInicio : anoFim;
-      const devido = isento ? 0 : (Number(a.valorMensalidade) || 0);
+      const isentoMes = mesIsento(a, m, ano);
+      const devido = (isento || isentoMes) ? 0 : (Number(a.valorMensalidade) || 0);
       const recebido = valorRecebidoAssociado(a.id, m, ano);
       totalDevido += devido;
       totalRecebido += recebido;
       let status;
-      if (devido === 0) status = 'N/A';
+      if (devido === 0) status = (isentoMes && !isento) ? 'Isento' : 'N/A';
       else if (recebido >= devido) status = 'Pago';
       else if (hoje > fimDoMes(ano, m)) status = 'Atrasado';
       else status = 'Pendente';
       if (status === 'Atrasado') valorEmDebito += (devido - recebido);
       const temLancamento = state.diario.some(x => x.categoria === 'Mensalidade Associado' && x.associadoId === a.id && Number(x.mesRef) === m && Number(x.anoRef) === ano);
       const editBtn = temLancamento ? `<button class="btn small secondary" style="padding:1px 5px;font-size:10px;margin-left:3px;" title="Editar este lançamento" onclick="editarRecebimento('${a.id}', ${m}, ${ano})">✎</button>` : '';
-      cells += `<td>${statusBadge(status)}${editBtn}</td>`;
+      const isencaoBtn = isento ? '' : (isentoMes
+        ? `<button class="btn small secondary" style="padding:1px 5px;font-size:10px;margin-left:3px;" title="Remover isenção deste mês" onclick="toggleIsencaoMes('${a.id}', ${m}, ${ano})">Reativar</button>`
+        : `<button class="btn small secondary" style="padding:1px 5px;font-size:10px;margin-left:3px;" title="Isentar este associado da mensalidade deste mês" onclick="toggleIsencaoMes('${a.id}', ${m}, ${ano})">Isentar</button>`);
+      cells += `<td>${statusBadge(status)}${editBtn}${isencaoBtn}</td>`;
     });
     const adimplencia = totalDevido > 0 ? Math.round((totalRecebido/totalDevido)*100) : 100;
     const situacaoHtml = valorEmDebito > 0
