@@ -1423,7 +1423,8 @@ function renderStaging(){
     const acaoHtml = t2.status === 'conciliado'
       ? `<button class="btn small danger" onclick="descartarStaging('${t2.id}')">Remover da lista</button>`
       : `<button class="btn small" onclick="confirmarStaging('${t2.id}')">Adicionar ao diário</button> <button class="btn small danger" onclick="descartarStaging('${t2.id}')">Descartar</button>`;
-    html += `<tr>
+    const rowStyle = t2.status === 'conciliado' ? ' style="background:#e3f4ea;"' : '';
+    html += `<tr${rowStyle}>
       <td>${statusHtml}</td>
       <td>${t2.data}</td>
       <td>${t2.historico}</td>
