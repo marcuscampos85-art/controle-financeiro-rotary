@@ -224,7 +224,8 @@
     <div class="grid grid-4" id="kpis"></div>
     <div class="card">
       <h2>Receitas x Despesas por mês</h2>
-      <div class="desc">Ano: <select id="painelAno" onchange="renderPainel()" style="width:100px;display:inline-block;"></select></div>
+      <div class="desc">Ano rotário: <select id="painelAno" onchange="renderPainel()" style="width:110px;display:inline-block;"></select></div>
+      <div class="muted" id="painelAnoPeriodo" style="margin-top:4px;"></div>
       <div class="chart-box"><canvas id="chartMensal"></canvas></div>
     </div>
   </section>
@@ -1332,13 +1333,17 @@ let chartMensal = null;
 function renderPainel(){
   document.getElementById('exampleBanner').style.display = state.seeded ? 'block' : 'none';
   const anoSel = document.getElementById('painelAno');
-  const anoAtual = new Date().getFullYear();
+  const rotAtual = anoRotarioInicioAtual();
   if (!anoSel.dataset.built){
-    anoSel.innerHTML = [anoAtual-1, anoAtual, anoAtual+1].map(a => `<option value="${a}" ${a===anoAtual?'selected':''}>${a}</option>`).join('');
+    anoSel.innerHTML = [rotAtual-1, rotAtual, rotAtual+1].map(a => `<option value="${a}" ${a===rotAtual?'selected':''}>${a}/${a+1}</option>`).join('');
     anoSel.dataset.built = '1';
   }
-  const ano = Number(anoSel.value || anoAtual);
-  const mesAtual = new Date().getMonth()+1;
+  const anoInicio = Number(anoSel.value || rotAtual);
+  const anoFim = anoInicio + 1;
+  document.getElementById('painelAnoPeriodo').textContent = 'Período: 01/07/' + anoInicio + ' a 30/06/' + anoFim;
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth()+1;
+  const anoAtual = hoje.getFullYear();
   const recebidoMes = totalReceitaCategoriaMes('Mensalidade Associado', mesAtual, anoAtual) + totalReceitaCategoriaMes('Outras Receitas', mesAtual, anoAtual);
   const despesaMes = state.categoriasDespesa.reduce((s,cat)=> s + totalDespesaCategoriaMes(cat, mesAtual, anoAtual), 0);
   const ativos = state.associados.filter(a=>a.status==='Ativo');
@@ -1364,13 +1369,13 @@ function renderPainel(){
   ];
   document.getElementById('kpis').innerHTML = kpis.map(k => `<div class="card kpi"><div class="v ${k.cls}">${k.valor}</div><div class="l">${k.label}</div></div>`).join('');
 
-  const d = dreData(ano);
+  const d = dreData(anoInicio);
   const ctx = document.getElementById('chartMensal').getContext('2d');
   if (chartMensal) chartMensal.destroy();
   chartMensal = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: MESES,
+      labels: MESES_ROTARIOS.map(m => MESES[m-1]),
       datasets: [
         { label: 'Receitas', data: d.totalReceitas, backgroundColor: '#1e8a4c' },
         { label: 'Despesas', data: d.totalDespesas, backgroundColor: '#c62828' }
