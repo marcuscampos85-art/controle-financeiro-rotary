@@ -428,7 +428,7 @@
     </div>
     <div class="card" id="stagingCard" style="display:none;">
       <h2>Transações para classificar</h2>
-      <div class="desc">Clique em "Conciliar com o Diário" pra eu comparar cada transação com o que já foi lançado: o que já está no diário eu marco como conciliado, e pro que for novo eu já deixo uma sugestão de categoria (e associado, quando for mensalidade). Depois é só conferir e clicar em "Adicionar ao diário". Se um único depósito for o pagamento de mais de um associado, segure Ctrl (ou Cmd no Mac) e clique em todos os nomes no campo Associado — eu divido o valor igualmente entre eles e crio um lançamento pra cada um.</div>
+      <div class="desc">Clique em "Conciliar com o Diário" pra eu comparar cada transação com o que já foi lançado: o que já está no diário eu marco como conciliado, e pro que for novo eu já deixo uma sugestão de categoria (e associado, quando for mensalidade). Depois é só conferir e clicar em "Adicionar ao diário". Se um único depósito for o pagamento de mais de um associado, marque a caixinha de todos os nomes na lista de Associado — eu divido o valor igualmente entre eles e crio um lançamento (baixa de mensalidade) pra cada um.</div>
       <button class="btn secondary" onclick="conciliarStaging()">Conciliar com o Diário</button>
       <div class="table-wrap" style="margin-top:12px;"><table id="tabelaStaging"></table></div>
     </div>
@@ -1526,7 +1526,12 @@ function renderStaging(){
       <td>${t2.historico}</td>
       <td style="color:${t2.valor<0?'var(--vermelho)':'var(--verde)'}">${fmtBRL(t2.valor)}</td>
       <td><select id="stgCat_${t2.id}">${categoriasDiario().map(c=>`<option value="${c}" ${c===catDefault?'selected':''}>${c}</option>`).join('')}</select></td>
-      <td><select id="stgAssoc_${t2.id}" multiple size="3" style="min-width:150px;">${associadosOrdenados(state.associados).map(a=>`<option value="${a.id}" ${a.id===assocDefault?'selected':''}>${a.nome}</option>`).join('')}</select><div class="muted" style="white-space:normal;font-size:10.5px;">Ctrl/Cmd+clique p/ vincular vários</div></td>
+      <td>
+        <div id="stgAssocLista_${t2.id}" style="max-height:90px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:4px 6px;min-width:150px;">
+          ${associadosOrdenados(state.associados).map(a=>`<label style="display:flex;align-items:center;gap:4px;font-weight:400;font-size:11.5px;color:var(--text);white-space:nowrap;margin:1px 0;"><input type="checkbox" class="stgAssocChk" value="${a.id}" style="width:auto;" ${a.id===assocDefault?'checked':''}> ${a.nome}</label>`).join('')}
+        </div>
+        <div class="muted" style="white-space:normal;font-size:10.5px;">Marque mais de um p/ vincular vários (pagamento único p/ várias pessoas)</div>
+      </td>
       <td><select id="stgMes_${t2.id}"><option value="">—</option>${MESES_LONGOS.map((m,i)=>`<option value="${i+1}" ${(i+1)===mesDefault?'selected':''}>${m}</option>`).join('')}</select></td>
       <td><input id="stgAno_${t2.id}" type="number" value="${anoDefault}" style="width:70px;"></td>
       <td>${acaoHtml}</td>
@@ -1539,7 +1544,7 @@ function confirmarStaging(id){
   const t = stagingTransactions.find(x => x.id === id);
   if (!t) return;
   const categoria = document.getElementById('stgCat_'+id).value;
-  const associadoIds = Array.from(document.getElementById('stgAssoc_'+id).selectedOptions).map(o => o.value).filter(Boolean);
+  const associadoIds = Array.from(document.querySelectorAll('#stgAssocLista_'+id+' .stgAssocChk:checked')).map(el => el.value);
   const mesRef = document.getElementById('stgMes_'+id).value || '';
   const anoRef = document.getElementById('stgAno_'+id).value || '';
   const valorTotal = Math.abs(t.valor);
