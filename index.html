@@ -257,9 +257,9 @@
     </div>
     <div class="card">
       <h2>Reajustar mensalidade a partir de um mês</h2>
-      <div class="desc">Programe um novo valor de mensalidade pra vigorar a partir do mês/ano escolhido, sem alterar o valor devido dos meses anteriores (que continuam com o valor antigo nos cálculos de Recebimentos e Painel).</div>
+      <div class="desc">Programe um novo valor de mensalidade pra vigorar a partir do mês/ano escolhido, sem alterar o valor devido dos meses anteriores (que continuam com o valor antigo nos cálculos de Recebimentos e Painel). Segure Ctrl (ou Cmd no Mac) e clique pra selecionar vários associados e aplicar o mesmo reajuste a todos de uma vez.</div>
       <div class="grid grid-4">
-        <div class="field"><label>Associado</label><select id="reajAssociado"></select></div>
+        <div class="field"><label>Associado(s)</label><select id="reajAssociado" multiple size="4"></select></div>
         <div class="field"><label>Novo valor (R$)</label><input id="reajValor" type="number" step="0.01" min="0" placeholder="0,00"></div>
         <div class="field"><label>Mês de vigência</label><select id="reajMes"></select></div>
         <div class="field"><label>Ano de vigência</label><input id="reajAno" type="number" placeholder="2026"></div>
@@ -665,22 +665,27 @@ function valorMensalidadeVigente(a, mes, ano){
   return valor;
 }
 function addReajusteMensalidade(){
-  const associadoId = document.getElementById('reajAssociado').value;
+  const associadoIds = Array.from(document.getElementById('reajAssociado').selectedOptions).map(o => o.value).filter(Boolean);
   const valor = Number(document.getElementById('reajValor').value);
   const mes = Number(document.getElementById('reajMes').value);
   const ano = Number(document.getElementById('reajAno').value);
-  const a = getAssociado(associadoId);
-  if (!a){ alert('Selecione um associado.'); return; }
+  if (!associadoIds.length){ alert('Selecione ao menos um associado.'); return; }
   if (!valor || valor <= 0){ alert('Informe o novo valor da mensalidade.'); return; }
   if (!mes || !ano){ alert('Informe o mês e o ano de vigência.'); return; }
-  if (!a.historicoMensalidade) a.historicoMensalidade = [];
-  a.historicoMensalidade.push({ mes, ano, valor });
+  const nomes = [];
+  associadoIds.forEach(associadoId => {
+    const a = getAssociado(associadoId);
+    if (!a) return;
+    if (!a.historicoMensalidade) a.historicoMensalidade = [];
+    a.historicoMensalidade.push({ mes, ano, valor });
+    nomes.push(a.nome);
+  });
   saveState();
   document.getElementById('reajValor').value = '';
   renderReajustes();
   renderRecebimentos();
   renderPainel();
-  alert('Reajuste programado: ' + a.nome + ' passa a pagar ' + fmtBRL(valor) + ' a partir de ' + MESES_LONGOS[mes-1] + '/' + ano + '.');
+  alert('Reajuste programado pra ' + nomes.length + ' associado(s): ' + fmtBRL(valor) + ' a partir de ' + MESES_LONGOS[mes-1] + '/' + ano + '.');
 }
 function removeReajusteMensalidade(associadoId, idx){
   const a = getAssociado(associadoId);
