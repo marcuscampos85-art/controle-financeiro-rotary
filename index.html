@@ -1574,7 +1574,7 @@ function conciliarStaging(){
 function renderStaging(){
   document.getElementById('stagingCard').style.display = stagingTransactions.length ? 'block' : 'none';
   const t = document.getElementById('tabelaStaging');
-  let html = '<thead><tr><th>Status</th><th>Data</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Associado</th><th>Mês ref.</th><th>Ano ref.</th><th></th></tr></thead><tbody>';
+  let html = '<thead><tr><th>Status</th><th>Data</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Associado</th><th>Mês ref.</th><th>Ano ref.</th><th>Evento</th><th></th></tr></thead><tbody>';
   stagingTransactions.forEach(t2 => {
     const sug = t2.sugestao || null;
     const catDefault = sug ? sug.categoria : (t2.valor < 0 ? 'Outras Despesas' : 'Outras Receitas');
@@ -1602,6 +1602,7 @@ function renderStaging(){
       </td>
       <td><select id="stgMes_${t2.id}"><option value="">—</option>${MESES_LONGOS.map((m,i)=>`<option value="${i+1}" ${(i+1)===mesDefault?'selected':''}>${m}</option>`).join('')}</select></td>
       <td><input id="stgAno_${t2.id}" type="number" value="${anoDefault}" style="width:70px;"></td>
+      <td><select id="stgEvento_${t2.id}"><option value="">— Nenhum —</option>${(state.eventos||[]).map(ev=>`<option value="${ev}">${ev}</option>`).join('')}</select></td>
       <td>${acaoHtml}</td>
     </tr>`;
   });
@@ -1615,6 +1616,7 @@ function confirmarStaging(id){
   const associadoIds = Array.from(document.querySelectorAll('#stgAssocLista_'+id+' .stgAssocChk:checked')).map(el => el.value);
   const mesRef = document.getElementById('stgMes_'+id).value || '';
   const anoRef = document.getElementById('stgAno_'+id).value || '';
+  const evento = document.getElementById('stgEvento_'+id).value || '';
   const valorTotal = Math.abs(t.valor);
 
   if (associadoIds.length > 1){
@@ -1629,6 +1631,7 @@ function confirmarStaging(id){
         id: uid('diario'), seq: seq++,
         data: t.data, categoria, valor,
         associadoId, mesRef, anoRef,
+        evento,
         formaPagamento: 'Transferência Bancária',
         status: 'Pago', conciliado: 'Sim',
         historico: t.historico + ' (dividido entre ' + n + ' associados)'
@@ -1639,6 +1642,7 @@ function confirmarStaging(id){
       id: uid('diario'), seq: seq++,
       data: t.data, categoria, valor: valorTotal,
       associadoId: associadoIds[0] || '',
+      evento,
       mesRef, anoRef,
       formaPagamento: 'Transferência Bancária',
       status: 'Pago', conciliado: 'Sim',
