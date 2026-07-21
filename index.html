@@ -6,6 +6,8 @@
 <title>Controle Financeiro — Rotary</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root {
     color-scheme: light;
@@ -449,7 +451,9 @@
       <button class="btn" onclick="exportarJSON()">Baixar backup completo (.json)</button>
       <button class="btn secondary" onclick="exportarCSV('diario')">Baixar diário (.csv)</button>
       <button class="btn secondary" onclick="exportarCSV('associados')">Baixar associados (.csv)</button>
-    </div>
+      <div class="muted" style="margin-top:12px;margin-bottom:4px;">Relatórios (Livro Diário e DRE):</div>
+      <div style="margin-bottom:6px;"><b>Livro Diário:</b> <button class="btn secondary" onclick="exportarCSV('diario')">CSV</button> <button class="btn secondary" onclick="exportarDiarioTXT()">TXT</button> <button class="btn secondary" onclick="exportarDiarioPDF()">PDF</button></div>
+    <div><b>DRE:</b> <button class="btn secondary" onclick="exportarDRECSV()">CSV</button> <button class="btn secondary" onclick="exportarDRETXT()">TXT</button> <button class="btn secondary" onclick="exportarDREPDF()">PDF</button></div>    </div>
     <div class="card">
       <h2>Restaurar backup</h2>
       <input type="file" id="restoreFile" accept=".json" onchange="handleRestore(event)">
@@ -1617,7 +1621,56 @@ function exportarCSV(qual){
   const csv = rows.map(r => r.map(csvEscape).join(';')).join('\r\n');
   download(qual + '_' + new Date().toISOString().slice(0,10) + '.csv', '﻿' + csv, 'text/csv;charset=utf-8');
 }
-function handleRestore(ev){
+function diarioRowsExport(){
+    const rows = [['Data','Histórico','Categoria','Associado','Mês Ref','Ano Ref','Valor','Tipo','Forma Pagamento','Status','Conciliado']];
+    diarioOrdenado().forEach(e => rows.push([e.data, e.historico||'', e.categoria, e.associadoId?(getAssociado(e.associadoId)?.nome||''):'', e.mesRef||'', e.anoRef||'', fmtBRL(e.valor), tipoDe(e.categoria), e.formaPagamento||'', e.status, e.conciliado]));
+    return rows;
+}
+  function dreRowsExport(){
+      const anoInicio = Number(document.getElementById('dreAno').value) || anoRotarioInicioAtual();
+      const d = dreData(anoInicio);
+      const rows = [['Linha', ...MESES_ROTARIOS.map(m=>MESES[m-1]), 'Total ano']];
+      const linha = (label, arr) => rows.push([label, ...arr.map(v=>fmtBRL(v||0)), fmtBRL(somaArr(arr))]);
+      linha('Receita de Mensalidades', d.receitaMensalidade);
+      linha('Outras Receitas', d.outrasReceitas);
+      linha('(=) Total de Receitas', d.totalReceitas);
+      state.categoriasDespesa.forEach((cat,i) => linha('(-) ' + cat, d.despesasPorCategoria[i]));
+      linha('(=) Total de Despesas', d.totalDespesas);
+      linha('(=) Resultado do período', d.resultado);
+      rows.push(['Saldo acumulado (fim do mês)', ...d.saldoFimMes.map(v=>fmtBRL(v)), fmtBRL(d.saldoFimMes[11])]);
+      return rows;
+  }
+  function rowsToTXT(rows){
+      return rows.map(r => r.map(c => String(c==null?'':c)).join('\t')).join('\r\n');
+  }
+  function exportarDiarioTXT(){
+      download('diario_' + new Date().toISOString().slice(0,10) + '.txt', rowsToTXT(diarioRowsExport()), 'text/plain;charset=utf-8');
+  }
+  function exportarDiarioPDF(){
+      const rows = diarioRowsExport();
+      const doc = new jspdf.jsPDF({ orientation: 'landscape' });
+      doc.setFontSize(14);
+      doc.text('Livro Diário', 14, 15);
+      doc.autoTable({ head: [rows[0]], body: rows.slice(1), startY: 20, styles: { fontSize: 7 } });
+      doc.save('diario_' + new Date().toISOString().slice(0,10) + '.pdf');
+  }
+  function exportarDRECSV(){
+      const rows = dreRowsExport();
+      const csv = rows.map(r => r.map(csvEscape).join(';')).join('\r\n');
+      download('dre_' + new Date().toISOString().slice(0,10) + '.csv', ' ' + csv, 'text/csv;charset=utf-8');
+  }
+  function exportarDRETXT(){
+      download('dre_' + new Date().toISOString().slice(0,10) + '.txt', rowsToTXT(dreRowsExport()), 'text/plain;charset=utf-8');
+  }
+  function exportarDREPDF(){
+      const rows = dreRowsExport();
+      const doc = new jspdf.jsPDF({ orientation: 'landscape' });
+      doc.setFontSize(14);
+      doc.text('DRE - Demonstracao do Resultado', 14, 15);
+      doc.autoTable({ head: [rows[0]], body: rows.slice(1), startY: 20, styles: { fontSize: 6 } });
+      doc.save('dre_' + new Date().toISOString().slice(0,10) + '.pdf');
+  }
+  function handleRestore(ev){
   const file = ev.target.files[0];
   if (!file) return;
   if (!confirm('Isso vai substituir todos os dados atuais pelos dados do backup. Continuar?')) { ev.target.value=''; return; }
