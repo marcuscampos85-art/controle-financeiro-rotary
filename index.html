@@ -121,6 +121,7 @@
   .badge.pendente { background: #fdf3e0; color: var(--amarelo); }
   .badge.atrasado { background: #fdecea; color: var(--vermelho); }
   .badge.na { background: #eef1f7; color: var(--text-mute); }
+    .badge.emdia { background: #e3f4ea; color: var(--verde); }
   .kpi { text-align: left; }
   .kpi .v { font-size: 22px; font-weight: 700; color: var(--azul-escuro); }
   .kpi .l { font-size: 11.5px; color: var(--text-mute); text-transform: uppercase; letter-spacing: .3px; }
@@ -1196,7 +1197,7 @@ function renderRecebimentos(){
       ? `<div class="badge atrasado" style="margin-top:4px;">Em débito: ${fmtBRL(valorEmDebito)}</div>`
       : (isento
           ? '<div class="badge na" style="margin-top:4px;">Isento</div>'
-          : '<div class="badge pago" style="margin-top:4px;">Em dia</div>');
+          : '<div class="badge emdia" style="margin-top:4px;">Em dia</div>');
     const saldoInicialCell = `<td><input type="number" step="0.01" value="${saldoInicial}" onchange="atualizarSaldoInicial('${a.id}', this.value)" style="width:100px;"></td>`;
     html += `<tr><td><b>${a.nome}</b><div class="muted">${a.categoria}</div>${situacaoHtml}</td>${saldoInicialCell}${cells}<td>${fmtBRL(totalDevido)}</td><td>${fmtBRL(totalRecebido)}</td><td>${adimplencia}%</td></tr>`;
   });
