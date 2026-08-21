@@ -322,7 +322,7 @@
     </div>
     <div class="card">
       <h2>Eventos cadastrados</h2>
-      <div class="desc">Edite qualquer campo diretamente na tabela. Totais de despesas/receitas somam os lançamentos do Diário vinculados a cada evento.</div>
+      <div class="desc">Use o botão <b>Editar</b> em cada linha para alterar os dados do evento e depois <b>Salvar</b>. Totais de despesas/receitas somam os lançamentos do Diário vinculados a cada evento.</div>
       <div class="table-wrap"><table id="tabelaEventos"></table></div>
     </div>
   </section>
@@ -947,15 +947,31 @@ function addEvento(){
   renderDiarioSelects();
   renderDespesas();
 }
-function updateEvento(id, field, value){
+let eventosEditando = new Set();
+function iniciarEdicaoEvento(id){
+  eventosEditando.add(id);
+  renderEventos();
+}
+function cancelarEdicaoEvento(id){
+  eventosEditando.delete(id);
+  renderEventos();
+}
+function salvarEdicaoEvento(id){
   const ev = getEvento(id);
   if (!ev) return;
-  ev[field] = value;
+  const nome = document.getElementById('ev_nome_'+id).value.trim();
+  if (!nome){ alert('Informe o nome do evento.'); return; }
+  ev.nome = nome;
+  ev.data = document.getElementById('ev_data_'+id).value || '';
+  ev.local = document.getElementById('ev_local_'+id).value.trim();
+  ev.descricao = document.getElementById('ev_descricao_'+id).value.trim();
+  eventosEditando.delete(id);
   saveState();
   renderEventos();
   renderDiarioSelects();
   renderDespesas();
 }
+function escHtmlEvento(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function deleteEvento(id){
   if (!confirm('Excluir este evento? Os lançamentos já vinculados a ele continuam no Diário/Despesas, só perdem o vínculo.')) return;
   state.eventos = (state.eventos||[]).filter(ev => ev.id !== id);
@@ -982,16 +998,28 @@ function renderEventos(){
     const totalD = totalEventoDespesa(ev.id);
     const totalR = totalEventoReceita(ev.id);
     const resultado = totalR - totalD;
-    html += `<tr>
-      <td><input value="${ev.nome||''}" onchange="updateEvento('${ev.id}','nome',this.value)" style="min-width:140px;"></td>
-      <td><input type="date" value="${ev.data||''}" onchange="updateEvento('${ev.id}','data',this.value)" style="min-width:130px;"></td>
-      <td><input value="${ev.local||''}" onchange="updateEvento('${ev.id}','local',this.value)" style="min-width:120px;"></td>
-      <td><input value="${(ev.descricao||'').replace(/"/g,'&quot;')}" onchange="updateEvento('${ev.id}','descricao',this.value)" style="min-width:160px;"></td>
-      <td style="color:var(--vermelho);">${totalD ? fmtBRL(totalD) : '—'}</td>
-      <td style="color:var(--verde);">${totalR ? fmtBRL(totalR) : '—'}</td>
-      <td style="color:${resultado<0?'var(--vermelho)':'var(--verde)'};"><b>${fmtBRL(resultado)}</b></td>
-      <td class="row-actions"><button class="btn small danger" onclick="deleteEvento('${ev.id}')">Excluir</button></td>
-    </tr>`;
+    const colD = `<td style="color:var(--vermelho);">${totalD ? fmtBRL(totalD) : '—'}</td>`;
+    const colR = `<td style="color:var(--verde);">${totalR ? fmtBRL(totalR) : '—'}</td>`;
+    const colRes = `<td style="color:${resultado<0?'var(--vermelho)':'var(--verde)'};"><b>${fmtBRL(resultado)}</b></td>`;
+    if (eventosEditando.has(ev.id)){
+      html += `<tr style="background:#eaf1fd;">
+        <td><input id="ev_nome_${ev.id}" value="${(ev.nome||'').replace(/"/g,'&quot;')}" style="min-width:140px;"></td>
+        <td><input id="ev_data_${ev.id}" type="date" value="${ev.data||''}" style="min-width:130px;"></td>
+        <td><input id="ev_local_${ev.id}" value="${(ev.local||'').replace(/"/g,'&quot;')}" style="min-width:120px;"></td>
+        <td><input id="ev_descricao_${ev.id}" value="${(ev.descricao||'').replace(/"/g,'&quot;')}" style="min-width:160px;"></td>
+        ${colD}${colR}${colRes}
+        <td class="row-actions"><button class="btn small" onclick="salvarEdicaoEvento('${ev.id}')">Salvar</button><button class="btn small secondary" onclick="cancelarEdicaoEvento('${ev.id}')">Cancelar</button></td>
+      </tr>`;
+    } else {
+      html += `<tr>
+        <td>${escHtmlEvento(ev.nome)||'—'}</td>
+        <td>${ev.data || '—'}</td>
+        <td>${escHtmlEvento(ev.local)||'—'}</td>
+        <td>${escHtmlEvento(ev.descricao)||'—'}</td>
+        ${colD}${colR}${colRes}
+        <td class="row-actions"><button class="btn small secondary" onclick="iniciarEdicaoEvento('${ev.id}')">Editar</button><button class="btn small danger" onclick="deleteEvento('${ev.id}')">Excluir</button></td>
+      </tr>`;
+    }
   });
   html += '</tbody>';
   t.innerHTML = html;
