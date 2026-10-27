@@ -408,10 +408,17 @@
     <div class="card">
       <h2>Despesas por categoria</h2>
       <div class="desc">Somatório mensal das despesas lançadas no diário (pelo mês da data do lançamento), organizado pelo ano rotário (julho a junho).</div>
-      <div class="field" style="max-width:260px;">
-        <label>Ano rotário (ano de início)</label>
-        <input id="despAno" type="number" onchange="renderDespesas()">
-        <div class="muted" id="despAnoPeriodo" style="margin-top:4px;"></div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+        <div class="field" style="max-width:260px;">
+          <label>Ano rotário (ano de início)</label>
+          <input id="despAno" type="number" onchange="renderDespesas()">
+          <div class="muted" id="despAnoPeriodo" style="margin-top:4px;"></div>
+        </div>
+        <div class="field" style="max-width:280px;">
+          <label>Filtrar por evento</label>
+          <select id="despFiltroEvento" onchange="renderDespesas()"><option value="">Todos os lançamentos</option></select>
+          <div class="muted" id="despFiltroTotal" style="margin-top:4px;"></div>
+        </div>
       </div>
       <div class="table-wrap"><table id="tabelaDespesasResumo"></table></div>
     </div>
@@ -1383,6 +1390,25 @@ function renderDespesas(){
   const anoInicio = Number(document.getElementById('despAno').value);
   const anoFim = anoInicio + 1;
   document.getElementById('despAnoPeriodo').textContent = 'Período: 01/07/' + anoInicio + ' a 30/06/' + anoFim;
+
+  // Filtro por evento (só consulta — não altera nenhum lançamento)
+  const filtroSel = document.getElementById('despFiltroEvento');
+  let filtroEvento = filtroSel ? filtroSel.value : '';
+  if (filtroEvento && filtroEvento !== '__sem__' && !getEvento(filtroEvento)) filtroEvento = '';
+  if (filtroSel) {
+    filtroSel.innerHTML = '<option value="">Todos os lançamentos</option><option value="__sem__">Sem evento vinculado</option>' +
+      eventosOrdenados().map(ev => `<option value="${ev.id}">${escHtmlEvento(ev.nome)}</option>`).join('');
+    filtroSel.value = filtroEvento;
+  }
+  const passaFiltroEvento = e => {
+    if (!filtroEvento) return true;
+    if (filtroEvento === '__sem__') return !e.eventoId || !getEvento(e.eventoId);
+    return e.eventoId === filtroEvento;
+  };
+  const totalCatMesFiltrado = (cat, mes, ano) => state.diario
+    .filter(e => e.categoria === cat && dataInMonth(e.data, mes, ano) && passaFiltroEvento(e))
+    .reduce((s,e) => s + (Number(e.valor)||0), 0);
+
   const t1 = document.getElementById('tabelaDespesasResumo');
   let html = '<thead><tr><th>Categoria</th>' + MESES_ROTARIOS.map(m=>`<th>${MESES[m-1]}</th>`).join('') + '<th>Total ano</th></tr></thead><tbody>';
   const totaisMes = new Array(12).fill(0);
@@ -1391,7 +1417,7 @@ function renderDespesas(){
     let cells = '';
     MESES_ROTARIOS.forEach((m, i) => {
       const anoRef = m >= 7 ? anoInicio : anoFim;
-      const v = totalDespesaCategoriaMes(cat, m, anoRef);
+      const v = totalCatMesFiltrado(cat, m, anoRef);
       totalAno += v; totaisMes[i] += v;
       cells += `<td>${v ? fmtBRL(v) : '—'}</td>`;
     });
@@ -1406,9 +1432,15 @@ function renderDespesas(){
     if (tipoDe(e.categoria) !== 'Despesa') return false;
     const d = toLocalDate(e.data);
     const y = d.getFullYear(), mo = d.getMonth() + 1;
-    return mo >= 7 ? (y === anoInicio) : (y === anoFim);
+    if (!(mo >= 7 ? (y === anoInicio) : (y === anoFim))) return false;
+    return passaFiltroEvento(e);
   });
-  let html2 = '<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th><th>Comprovante</th><th></th></tr></thead><tbody>';
+  const totalFiltrado = despesas.reduce((s,e)=>s+(Number(e.valor)||0),0);
+  const totalEl = document.getElementById('despFiltroTotal');
+  if (totalEl) totalEl.textContent = filtroEvento
+    ? despesas.length + ' lançamento(s) · Total: ' + fmtBRL(totalFiltrado)
+    : '';
+  let html2 ='<thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Valor</th><th>Forma</th><th>Status</th><th>Comprovante</th><th></th></tr></thead><tbody>';
   if (!despesas.length) html2 += '<tr><td colspan="8" class="muted">Nenhuma despesa lançada neste período.</td></tr>';
   despesas.forEach(e => {
     if (lancamentosEditando.has(e.id)){
