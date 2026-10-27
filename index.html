@@ -321,8 +321,11 @@
       <button class="btn" onclick="addEvento()">Adicionar evento</button>
     </div>
     <div class="card">
-      <h2>Eventos cadastrados</h2>
-      <div class="desc">Use o botão <b>Editar</b> em cada linha para alterar os dados do evento e depois <b>Salvar</b>. Totais de despesas/receitas somam os lançamentos do Diário vinculados a cada evento.</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Eventos cadastrados</h2>
+        <button class="btn small secondary" onclick="imprimirEventos()">🖨 Imprimir todos</button>
+      </div>
+      <div class="desc">Use o botão <b>Editar</b> em cada linha para alterar os dados do evento e depois <b>Salvar</b>. Totais de despesas/receitas somam os lançamentos do Diário vinculados a cada evento. O botão <b>Imprimir</b> gera o relatório do evento com todas as receitas e despesas (dá para salvar em PDF na tela de impressão).</div>
       <div class="table-wrap"><table id="tabelaEventos"></table></div>
     </div>
   </section>
@@ -989,6 +992,91 @@ function deleteEvento(id){
   renderDiario();
   renderDespesas();
 }
+/* Relatório de impressão dos eventos (somente leitura — não altera nenhum lançamento) */
+function imprimirEventos(eventoId){
+  const esc = escHtmlEvento;
+  const fmtD = d => { if (!d) return '—'; const p = String(d).split('-'); return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : d; };
+  const lista = eventoId ? [getEvento(eventoId)].filter(Boolean) : eventosOrdenados();
+  if (!lista.length){ alert('Nenhum evento para imprimir.'); return; }
+
+  const tabelaLanc = (titulo, itens, cor) => {
+    const total = itens.reduce((s,e)=>s+(Number(e.valor)||0),0);
+    let h = `<h3 style="color:${cor}">${titulo}</h3>`;
+    if (!itens.length) return h + '<p class="vazio">Nenhum lançamento.</p>';
+    h += '<table><thead><tr><th>Data</th><th>Categoria</th><th>Histórico</th><th>Forma</th><th>Status</th><th class="num">Valor</th></tr></thead><tbody>';
+    itens.forEach(e => {
+      h += `<tr><td>${fmtD(e.data)}</td><td>${esc(e.categoria)}</td><td>${esc(e.historico)||'—'}</td><td>${esc(e.formaPagamento)||'—'}</td><td>${esc(e.status)||'—'}</td><td class="num">${fmtBRL(e.valor)}</td></tr>`;
+    });
+    h += `</tbody><tfoot><tr><td colspan="5">Total</td><td class="num">${fmtBRL(total)}</td></tr></tfoot></table>`;
+    return h;
+  };
+
+  let corpo = '';
+  let somaD = 0, somaR = 0;
+  lista.forEach((ev, i) => {
+    const lanc = diarioOrdenado().filter(e => e.eventoId === ev.id);
+    const rec = lanc.filter(e => tipoDe(e.categoria) === 'Receita');
+    const desp = lanc.filter(e => tipoDe(e.categoria) === 'Despesa');
+    const tR = rec.reduce((s,e)=>s+(Number(e.valor)||0),0);
+    const tD = desp.reduce((s,e)=>s+(Number(e.valor)||0),0);
+    somaR += tR; somaD += tD;
+    const res = tR - tD;
+    corpo += `<section class="evento"${i>0 ? ' style="page-break-before:always;"' : ''}>
+      <h2>${esc(ev.nome)}</h2>
+      <p class="info"><b>Data:</b> ${fmtD(ev.data)} &nbsp;·&nbsp; <b>Local:</b> ${esc(ev.local)||'—'}${ev.descricao ? `<br><b>Descrição:</b> ${esc(ev.descricao)}` : ''}</p>
+      <div class="resumo">
+        <div><span>Receitas</span><b style="color:#2e7d32">${fmtBRL(tR)}</b></div>
+        <div><span>Despesas</span><b style="color:#c62828">${fmtBRL(tD)}</b></div>
+        <div><span>Resultado</span><b style="color:${res<0?'#c62828':'#2e7d32'}">${fmtBRL(res)}</b></div>
+      </div>
+      ${tabelaLanc('Receitas', rec, '#2e7d32')}
+      ${tabelaLanc('Despesas', desp, '#c62828')}
+    </section>`;
+  });
+
+  if (!eventoId && lista.length > 1){
+    let h = '<section class="evento" style="page-break-before:always;"><h2>Resumo de todos os eventos</h2><table><thead><tr><th>Evento</th><th>Data</th><th class="num">Receitas</th><th class="num">Despesas</th><th class="num">Resultado</th></tr></thead><tbody>';
+    lista.forEach(ev => {
+      const r = totalEventoReceita(ev.id), d = totalEventoDespesa(ev.id);
+      h += `<tr><td>${esc(ev.nome)}</td><td>${fmtD(ev.data)}</td><td class="num">${fmtBRL(r)}</td><td class="num">${fmtBRL(d)}</td><td class="num">${fmtBRL(r-d)}</td></tr>`;
+    });
+    h += `</tbody><tfoot><tr><td colspan="2">Total</td><td class="num">${fmtBRL(somaR)}</td><td class="num">${fmtBRL(somaD)}</td><td class="num">${fmtBRL(somaR-somaD)}</td></tr></tfoot></table></section>`;
+    corpo += h;
+  }
+
+  const titulo = eventoId ? 'Relatório do evento — ' + (lista[0].nome||'') : 'Relatório de eventos';
+  const agora = new Date().toLocaleString('pt-BR');
+  const doc = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo)}</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;color:#222;margin:24px;font-size:12px;}
+  header{border-bottom:2px solid #17458f;padding-bottom:8px;margin-bottom:16px;}
+  header h1{margin:0;font-size:18px;color:#17458f;} header p{margin:2px 0 0;color:#666;font-size:11px;}
+  h2{font-size:16px;margin:0 0 4px;} h3{font-size:13px;margin:16px 0 6px;}
+  .info{margin:0 0 10px;color:#444;}
+  .resumo{display:flex;gap:10px;margin:8px 0 4px;}
+  .resumo div{flex:1;border:1px solid #ddd;border-radius:6px;padding:8px;}
+  .resumo span{display:block;font-size:11px;color:#666;} .resumo b{font-size:14px;}
+  table{width:100%;border-collapse:collapse;}
+  th,td{border-bottom:1px solid #ddd;padding:5px 6px;text-align:left;vertical-align:top;}
+  th{background:#f2f4f8;font-size:11px;} .num{text-align:right;white-space:nowrap;}
+  tfoot td{font-weight:bold;border-top:2px solid #999;}
+  .vazio{color:#888;font-style:italic;}
+  .assin{margin-top:48px;display:flex;gap:40px;} .assin div{flex:1;border-top:1px solid #555;text-align:center;padding-top:4px;font-size:11px;}
+  .acoes{margin-bottom:16px;} .acoes button{padding:8px 14px;font-size:13px;cursor:pointer;}
+  @media print{.acoes{display:none;} body{margin:12mm;} tr{page-break-inside:avoid;}}
+</style></head><body>
+<div class="acoes"><button onclick="window.print()">🖨 Imprimir / Salvar PDF</button></div>
+<header><h1>${esc(titulo)}</h1><p>Controle Financeiro do Clube · Emitido em ${agora}</p></header>
+${corpo}
+<div class="assin"><div>Tesoureiro(a)</div><div>Presidente</div></div>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w){ alert('O navegador bloqueou a janela de impressão. Libere pop-ups para este site e clique de novo.'); return; }
+  w.document.open(); w.document.write(doc); w.document.close();
+  w.focus();
+  setTimeout(() => { try { w.print(); } catch(e){} }, 300);
+}
 function totalEventoDespesa(id){
   return state.diario.filter(e => e.eventoId === id && tipoDe(e.categoria) === 'Despesa').reduce((s,e)=>s+(Number(e.valor)||0),0);
 }
@@ -1024,7 +1112,7 @@ function renderEventos(){
         <td>${escHtmlEvento(ev.local)||'—'}</td>
         <td>${escHtmlEvento(ev.descricao)||'—'}</td>
         ${colD}${colR}${colRes}
-        <td class="row-actions"><button class="btn small secondary" onclick="iniciarEdicaoEvento('${ev.id}')">Editar</button><button class="btn small danger" onclick="deleteEvento('${ev.id}')">Excluir</button></td>
+        <td class="row-actions"><button class="btn small secondary" onclick="imprimirEventos('${ev.id}')">🖨 Imprimir</button><button class="btn small secondary" onclick="iniciarEdicaoEvento('${ev.id}')">Editar</button><button class="btn small danger" onclick="deleteEvento('${ev.id}')">Excluir</button></td>
       </tr>`;
     }
   });
